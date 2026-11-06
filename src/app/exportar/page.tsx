@@ -572,7 +572,7 @@ export default function ExportarPage() {
                   <span>
                     Turmas no cruzamento:{" "}
                     <strong>
-                      {shiftTurmas.map((t) => t.name).join(", ")}
+                      {(shiftTurmas || []).map((t) => t?.name || "").join(", ")}
                     </strong>
                   </span>
                 </div>
@@ -595,7 +595,7 @@ export default function ExportarPage() {
                   <button
                     type="button"
                     onClick={() =>
-                      setSelectedIds(availableItems.map((i) => i.id))
+                      setSelectedIds((availableItems || []).map((i) => i.id))
                     }
                     className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
                       selectedIds.length === availableItems.length
@@ -611,9 +611,9 @@ export default function ExportarPage() {
                       type="button"
                       onClick={() =>
                         setSelectedIds(
-                          ALL_TURMAS_SHEETS.filter(
-                            (t) => t.yearGroup === "1º Ano"
-                          ).map((t) => t.id)
+                          (ALL_TURMAS_SHEETS || [])
+                            .filter((t) => t.yearGroup === "1º Ano")
+                            .map((t) => t.id)
                         )
                       }
                       className="px-2.5 py-1 rounded-lg text-[11px] font-bold border bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 transition-colors cursor-pointer"
@@ -633,7 +633,7 @@ export default function ExportarPage() {
                       <p className="text-xs font-bold text-slate-800 truncate">
                         {selectedSheets.length === availableItems.length
                           ? `Todas selecionadas (${availableItems.length})`
-                          : selectedSheets.map((s) => s.name).join(", ")}
+                          : (selectedSheets || []).map((s) => s?.name || "").join(", ")}
                       </p>
                       <p className="text-[11px] text-slate-500">
                         Clique para selecionar os itens do lote vetorial
@@ -648,7 +648,7 @@ export default function ExportarPage() {
 
                   {isDropdownOpen && (
                     <div className="mt-1.5 p-2 rounded-xl bg-white border border-slate-200 shadow-lg space-y-1 max-h-48 overflow-y-auto z-30">
-                      {availableItems.map((item) => {
+                      {(availableItems || []).map((item) => {
                         const isChecked = selectedIds.includes(item.id);
                         return (
                           <button

@@ -313,7 +313,7 @@ export default function EscolasPage() {
               </div>
             ) : (
               <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
-                {schools.map((school) => {
+                {(schools || []).map((school) => {
                   const isEditing = editingId === school.id;
                   const isActiveTenant = activeSchoolId === school.id;
 

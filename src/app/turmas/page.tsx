@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Topbar from "@/components/Topbar";
 import EmptyState from "@/components/EmptyState";
+import { listarTurmas, salvarTurma } from "@/actions/turmaActions";
+import { listarDisciplinas } from "@/actions/disciplinaActions";
 import {
   DEFAULT_SUBJECTS,
   DEFAULT_CLASSES,
@@ -45,30 +47,74 @@ export default function TurmasPage() {
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const savedSubjects = localStorage.getItem(SUBJECTS_STORAGE_KEY);
-      if (savedSubjects) {
-        const parsedSub = JSON.parse(savedSubjects);
-        if (Array.isArray(parsedSub) && parsedSub.length > 0) {
-          setSubjects(parsedSub);
-          setSelectedSubjectId(parsedSub[0].id);
-        }
-      }
+    async function carregarDados() {
+      try {
+        // 1. Busca Disciplinas (Supabase com fallback LocalStorage)
+        const resDisc = await listarDisciplinas();
+        let listaDisciplinas: SubjectItem[] = [];
 
-      const savedClasses = localStorage.getItem(CLASSES_STORAGE_KEY);
-      if (savedClasses) {
-        const parsedCls = JSON.parse(savedClasses);
-        if (Array.isArray(parsedCls)) {
-          setClasses(parsedCls);
+        if (resDisc.success && resDisc.data && resDisc.data.length > 0) {
+          listaDisciplinas = (resDisc.data || []).map((d) => ({
+            id: d.id,
+            name: d.nome,
+            code: d.codigo,
+            colorId: d.cor_id,
+          }));
+        } else {
+          const savedSubjects = localStorage.getItem(SUBJECTS_STORAGE_KEY);
+          if (savedSubjects) {
+            const parsedSub = JSON.parse(savedSubjects);
+            if (Array.isArray(parsedSub)) {
+              listaDisciplinas = parsedSub;
+            }
+          }
         }
-      } else {
-        setClasses([]);
+
+        if (listaDisciplinas.length === 0) {
+          listaDisciplinas = DEFAULT_SUBJECTS;
+        }
+        setSubjects(listaDisciplinas);
+        if (listaDisciplinas.length > 0) {
+          setSelectedSubjectId(listaDisciplinas[0].id);
+        }
+
+        // 2. Busca Turmas (Supabase com fallback LocalStorage)
+        const resTurmas = await listarTurmas();
+        let listaTurmas: SchoolClassItem[] = [];
+
+        if (resTurmas.success && resTurmas.data && resTurmas.data.length > 0) {
+          listaTurmas = (resTurmas.data || []).map((t) => ({
+            id: t.id,
+            name: t.nome,
+            shift: t.turno,
+            curriculum: Array.isArray(t.matriz_curricular)
+              ? t.matriz_curricular
+              : [],
+          }));
+        } else {
+          const savedClasses = localStorage.getItem(CLASSES_STORAGE_KEY);
+          if (savedClasses) {
+            const parsedCls = JSON.parse(savedClasses);
+            if (Array.isArray(parsedCls)) {
+              listaTurmas = parsedCls;
+            }
+          }
+        }
+
+        if (listaTurmas.length === 0) {
+          listaTurmas = DEFAULT_CLASSES;
+        }
+        setClasses(listaTurmas);
+      } catch (err) {
+        console.error("Erro ao carregar dados de turmas:", err);
+        setClasses(DEFAULT_CLASSES);
+        setSubjects(DEFAULT_SUBJECTS);
+      } finally {
+        setIsLoaded(true);
       }
-    } catch {
-      setClasses([]);
-    } finally {
-      setIsLoaded(true);
     }
+
+    carregarDados();
   }, []);
 
   useEffect(() => {
@@ -257,10 +303,10 @@ export default function TurmasPage() {
               </div>
             ) : (
               <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
-                {classes.map((cls) => {
+                {(classes || []).map((cls) => {
                   const isSelected = editingId === cls.id;
-                  const totalLessons = cls.curriculum.reduce(
-                    (acc, i) => acc + i.weeklyClasses,
+                  const totalLessons = (cls?.curriculum || []).reduce(
+                    (acc, i) => acc + (i?.weeklyClasses || 0),
                     0
                   );
                   const limit = cls.shift === "Integral" ? 45 : 25;
@@ -287,7 +333,7 @@ export default function TurmasPage() {
                             </span>
                           </div>
                           <p className="text-xs text-slate-500 mt-0.5">
-                            {cls.curriculum.length} disciplinas •{" "}
+                            {(cls?.curriculum || []).length} disciplinas •{" "}
                             <strong
                               className={
                                 exceeds ? "text-rose-600" : "text-slate-700"
@@ -325,9 +371,9 @@ export default function TurmasPage() {
                         </div>
                       </div>
 
-                      {cls.curriculum.length > 0 && (
+                      {(cls?.curriculum || []).length > 0 && (
                         <div className="flex flex-wrap gap-1.5 pt-1">
-                          {cls.curriculum.map((item) => {
+                          {(cls?.curriculum || []).map((item) => {
                             const color = getColorOption(item.colorId);
                             return (
                               <span
@@ -441,10 +487,10 @@ export default function TurmasPage() {
                       onChange={(e) => setSelectedSubjectId(e.target.value)}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                     >
-                      {subjects.length === 0 ? (
+                      {(subjects || []).length === 0 ? (
                         <option value="">Nenhuma disciplina cadastrada</option>
                       ) : (
-                        subjects.map((sub) => (
+                        (subjects || []).map((sub) => (
                           <option key={sub.id} value={sub.id}>
                             {sub.name} ({sub.code})
                           </option>
@@ -499,7 +545,7 @@ export default function TurmasPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200/80 text-xs">
-                      {curriculum.length === 0 ? (
+                      {(curriculum || []).length === 0 ? (
                         <tr>
                           <td
                             colSpan={4}
@@ -510,7 +556,7 @@ export default function TurmasPage() {
                           </td>
                         </tr>
                       ) : (
-                        curriculum.map((item) => {
+                        (curriculum || []).map((item) => {
                           const color = getColorOption(item.colorId);
                           return (
                             <tr

@@ -194,7 +194,7 @@ export default function DisciplinasPage() {
               </div>
             ) : (
               <div className="h-full flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] space-y-2.5 pt-3">
-                {subjects.map((sub) => {
+                {(subjects || []).map((sub) => {
                   const color = getColorOption(sub.colorId);
                   const isSelected = editingId === sub.id;
 

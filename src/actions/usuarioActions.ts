@@ -290,7 +290,7 @@ export async function listarUsuarios(): Promise<{
     }
 
     if (error) {
-      console.warn("[listarUsuarios] Aviso ao consultar usuarios:", error.message);
+      console.error("Erro no Supabase ao listar usuários:", error);
 
       // Tenta fallback com adminClient se a chave estiver configurada
       try {
@@ -298,7 +298,7 @@ export async function listarUsuarios(): Promise<{
         const { data: authList, error: authListError } =
           await admin.auth.admin.listUsers();
         if (!authListError && authList?.users) {
-          const mapped: UsuarioItem[] = authList.users.map((u) => {
+          const mapped: UsuarioItem[] = (authList.users || []).map((u) => {
             const cleanUser =
               (u.user_metadata?.username as string) ||
               emailToUsername(u.email || "");

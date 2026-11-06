@@ -66,11 +66,11 @@ export default function UsuariosPage() {
       ]);
 
       if (resUsers.success && resUsers.data) {
-        setUsuarios(resUsers.data);
+        setUsuarios(resUsers.data || []);
       }
       if (resEscolas.success && resEscolas.data) {
         setEscolas(
-          resEscolas.data.map((e: any) => ({
+          (resEscolas.data || []).map((e: any) => ({
             id: e.id,
             nome: e.nome,
           }))
@@ -172,22 +172,22 @@ export default function UsuariosPage() {
     }
   };
 
-  const usuariosFiltrados = usuarios.filter((u) => {
-    const q = searchQuery.toLowerCase();
+  const usuariosFiltrados = (usuarios || []).filter((u) => {
+    const q = (searchQuery || "").toLowerCase();
     const matchSearch =
-      u.nome.toLowerCase().includes(q) ||
-      (u.username && u.username.toLowerCase().includes(q)) ||
-      u.email.toLowerCase().includes(q) ||
-      (u.escola_nome && u.escola_nome.toLowerCase().includes(q));
+      (u?.nome || "").toLowerCase().includes(q) ||
+      (u?.username && u.username.toLowerCase().includes(q)) ||
+      (u?.email || "").toLowerCase().includes(q) ||
+      (u?.escola_nome && u.escola_nome.toLowerCase().includes(q));
 
     const matchRole =
-      roleFilter === "todos" ? true : u.role.toLowerCase() === roleFilter.toLowerCase();
+      roleFilter === "todos" ? true : (u?.role || "").toLowerCase() === roleFilter.toLowerCase();
 
     return matchSearch && matchRole;
   });
 
-  const totalAdmins = usuarios.filter((u) => u.role === "admin").length;
-  const totalCoordenadores = usuarios.filter((u) => u.role === "coordenador").length;
+  const totalAdmins = (usuarios || []).filter((u) => u?.role === "admin").length;
+  const totalCoordenadores = (usuarios || []).filter((u) => u?.role === "coordenador").length;
 
   const getRoleBadge = (roleName: string) => {
     switch (roleName.toLowerCase()) {
@@ -373,7 +373,7 @@ export default function UsuariosPage() {
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {usuariosFiltrados.map((u) => {
+              {(usuariosFiltrados || []).map((u) => {
                 const userTag = u.username || emailToUsername(u.email);
                 return (
                   <div
@@ -607,7 +607,7 @@ export default function UsuariosPage() {
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
                   >
                     <option value="">Acesso Global (Todas as Escolas)</option>
-                    {escolas.map((esc) => (
+                    {(escolas || []).map((esc) => (
                       <option key={esc.id} value={esc.id}>
                         {esc.nome}
                       </option>

@@ -83,7 +83,7 @@ export default function Topbar() {
       let currentList: SchoolTenant[] = [];
 
       if (response.success && response.data && response.data.length > 0) {
-        currentList = response.data.map((row: any) => ({
+        currentList = (response.data || []).map((row: any) => ({
           id: row.id,
           name: row.nome,
           subtitle:
@@ -318,12 +318,12 @@ export default function Topbar() {
                     Selecionar Instituição Ativa
                   </span>
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
-                    {schools.length} {schools.length === 1 ? "escola" : "escolas"}
+                    {(schools || []).length} {(schools || []).length === 1 ? "escola" : "escolas"}
                   </span>
                 </div>
 
                 <div className="p-1.5 space-y-1 max-h-64 overflow-y-auto">
-                  {schools.length === 0 ? (
+                  {(!schools || schools.length === 0) ? (
                     <div className="py-5 px-3 text-center">
                       <p className="text-xs text-slate-500 font-medium">
                         Nenhuma escola cadastrada ainda.
@@ -338,7 +338,7 @@ export default function Topbar() {
                       </Link>
                     </div>
                   ) : (
-                    schools.map((school) => {
+                    (schools || []).map((school) => {
                       const isSelected = school.id === activeSchool.id;
                       return (
                         <button
@@ -468,7 +468,7 @@ export default function Topbar() {
           aria-label={`Navegação de ${activeSchool.name}`}
           className="hidden lg:flex items-center gap-1"
         >
-          {navItems.map((item) => {
+          {(navItems || []).map((item) => {
             const Icon = item.icon;
             const isActive =
               item.id === "inicio"

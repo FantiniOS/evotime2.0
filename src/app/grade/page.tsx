@@ -642,33 +642,47 @@ export default function GradePage() {
             : null) || FALLBACK_EMPTY_SCHOOL;
         setActiveSchool(school);
 
-        // Carrega Turmas e Professores do LocalStorage se existirem
+        // Carrega Turmas e Professores com fallbacks defensivos
         const savedCls = localStorage.getItem(CLASSES_STORAGE_KEY);
         if (savedCls) {
-          const parsedCls = JSON.parse(savedCls);
-          if (Array.isArray(parsedCls) && parsedCls.length > 0) {
-            const names = parsedCls.map((c: { name: string }) => c.name);
-            setTurmasList(names);
-            setSelectedTurma((prev) => prev || names[0]);
+          try {
+            const parsedCls = JSON.parse(savedCls);
+            if (Array.isArray(parsedCls) && parsedCls.length > 0) {
+              const names = (parsedCls || [])
+                .map((c: { name: string }) => c?.name || "")
+                .filter(Boolean);
+              if (names.length > 0) {
+                setTurmasList(names);
+                setSelectedTurma((prev) => prev || names[0]);
+              }
+            }
+          } catch {
+            // Ignora erro de JSON
           }
         }
 
         const savedTeachers = localStorage.getItem(TEACHERS_STORAGE_KEY);
         if (savedTeachers) {
-          const parsedT = JSON.parse(savedTeachers);
-          if (Array.isArray(parsedT) && parsedT.length > 0) {
-            const pNames = [
-              "Todos os Professores",
-              ...parsedT.map((t: { name: string }) => t.name),
-            ];
-            setProfessoresList(pNames);
+          try {
+            const parsedT = JSON.parse(savedTeachers);
+            if (Array.isArray(parsedT) && parsedT.length > 0) {
+              const pNames = [
+                "Todos os Professores",
+                ...(parsedT || [])
+                  .map((t: { name: string }) => t?.name || "")
+                  .filter(Boolean),
+              ];
+              setProfessoresList(pNames);
+            }
+          } catch {
+            // Ignora erro de JSON
           }
         }
 
-        // Identifica o turno da turma selecionada
-        const isTarde = selectedTurma.toLowerCase().includes("tarde") ||
-          selectedTurma.includes("2º Ano B");
-        const isNoite = selectedTurma.toLowerCase().includes("noite");
+        // Identifica o turno da turma selecionada de forma 100% segura
+        const safeTurma = (selectedTurma || "").toLowerCase();
+        const isTarde = safeTurma.includes("tarde") || safeTurma.includes("2º ano b");
+        const isNoite = safeTurma.includes("noite");
         const shiftKey = isNoite ? "noite" : isTarde ? "tarde" : "manha";
         setActiveShiftName(isNoite ? "Noturno" : isTarde ? "Vespertino" : "Matutino");
 
@@ -1145,10 +1159,10 @@ export default function GradePage() {
                     onChange={(e) => setSelectedTurma(e.target.value)}
                     className="w-full bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer truncate"
                   >
-                    {turmasList.length === 0 ? (
+                    {(turmasList || []).length === 0 ? (
                       <option value="">Nenhuma turma cadastrada</option>
                     ) : (
-                      turmasList.map((turma) => (
+                      (turmasList || []).map((turma) => (
                         <option key={turma} value={turma}>
                           {turma}
                         </option>
@@ -1176,7 +1190,7 @@ export default function GradePage() {
                     onChange={(e) => setSelectedProfessor(e.target.value)}
                     className="w-full bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer truncate"
                   >
-                    {professoresList.map((prof) => (
+                    {(professoresList || []).map((prof) => (
                       <option key={prof} value={prof}>
                         {prof}
                       </option>
@@ -1335,12 +1349,12 @@ export default function GradePage() {
                   </button>
                 </div>
 
-                {appliedFixesSummary.length > 0 && (
+                {(appliedFixesSummary || []).length > 0 && (
                   <div className="pt-2.5 border-t border-emerald-200/80 flex flex-wrap items-center gap-2">
                     <span className="text-[11px] font-bold text-emerald-900">
                       Sugestões da IA aplicadas:
                     </span>
-                    {appliedFixesSummary.map((fix, idx) => (
+                    {(appliedFixesSummary || []).map((fix, idx) => (
                       <span
                         key={idx}
                         className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white text-emerald-800 border border-emerald-200 text-[11px] font-semibold"
@@ -1369,7 +1383,7 @@ export default function GradePage() {
                         </h3>
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold">
                           <Lightbulb className="w-3 h-3 text-amber-600" />
-                          {activeJob.unfeasibleReport.conflicts.length} sugestões
+                          {(activeJob.unfeasibleReport.conflicts || []).length} sugestões
                           prontas
                         </span>
                       </div>
@@ -1420,7 +1434,7 @@ export default function GradePage() {
                   <div className="p-4 flex items-center justify-center text-xs font-bold uppercase tracking-wider text-slate-500 border-r border-slate-200/70">
                     Período
                   </div>
-                  {DAYS.map((day) => (
+                  {(DAYS || []).map((day) => (
                     <div
                       key={day.key}
                       className="p-4 text-center border-r last:border-r-0 border-slate-200/70"
@@ -1437,7 +1451,7 @@ export default function GradePage() {
 
                 {/* Linhas da Tabela Geradas Dinamicamente via .map() */}
                 <div className="divide-y divide-slate-200/70">
-                  {aulasArray.map((aulaNum) => {
+                  {(aulasArray || []).map((aulaNum) => {
                     const isIntervalRow = aulaNum === posicao_intervalo;
 
                     return (
@@ -1455,7 +1469,7 @@ export default function GradePage() {
                           </div>
 
                           {/* Colunas dos Dias da Semana com Droppable Slots (slot_dia_X_aula_Y) */}
-                          {DAYS.map((day, dayIdx) => {
+                          {(DAYS || []).map((day, dayIdx) => {
                             const slotId = buildSlotId(day.dayNumber, aulaNum);
                             const lesson = lessonsMap[slotId];
                             const isFilteredOut =

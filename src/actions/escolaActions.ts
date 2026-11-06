@@ -162,7 +162,7 @@ export async function listarEscolas(): Promise<ListarEscolasResponse> {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.warn("Aviso ao listar escolas do Supabase:", error.message);
+      console.error("Erro no Supabase ao listar escolas:", error);
       return { success: false, data: [] };
     }
 

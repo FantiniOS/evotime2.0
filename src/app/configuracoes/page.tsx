@@ -228,7 +228,7 @@ export default function ConfiguracoesPage() {
         }
       }
 
-      const updatedList = list.map((s) =>
+      const updatedList = (list || []).map((s) =>
         s.id === activeSchool.id
           ? {
               ...s,
@@ -542,7 +542,7 @@ export default function ConfiguracoesPage() {
 
               {/* Cards dos Turnos: Manhã, Tarde e Noite */}
               <div className="space-y-4">
-                {shiftCards.map((item) => {
+                {(shiftCards || []).map((item) => {
                   const Icon = item.icon;
                   const shiftConfig = settings.shifts[item.key];
 

@@ -361,12 +361,12 @@ export default function ProfessoresPage() {
               </div>
             ) : (
               <div className="h-full flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] space-y-2.5 pt-3">
-                {teachers.map((teacher) => {
+                {(teachers || []).map((teacher) => {
                   const isSelected = editingId === teacher.id;
                   const availableCount =
-                    TOTAL_SLOTS - teacher.unavailableSlots.length;
+                    TOTAL_SLOTS - (teacher?.unavailableSlots?.length || 0);
                   const fullDaysOff = getFullDaysOffLabels(
-                    teacher.unavailableSlots
+                    teacher?.unavailableSlots || []
                   );
 
                   return (
@@ -433,7 +433,7 @@ export default function ProfessoresPage() {
                       {/* Resumo dos Vínculos (Disciplina -> Turmas) */}
                       {teacher.assignments && teacher.assignments.length > 0 && (
                         <div className="pt-2 border-t border-slate-200/60 space-y-1.5">
-                          {teacher.assignments.map((vinc) => {
+                          {(teacher.assignments || []).map((vinc) => {
                             const color = getColorOption(vinc.colorId);
                             return (
                               <div
@@ -539,7 +539,7 @@ export default function ProfessoresPage() {
                         {subjects.length === 0 ? (
                           <option value="">Nenhuma disciplina cadastrada</option>
                         ) : (
-                          subjects.map((sub) => (
+                          (subjects || []).map((sub) => (
                             <option key={sub.id} value={sub.id}>
                               {sub.name} ({sub.code})
                             </option>
@@ -559,7 +559,7 @@ export default function ProfessoresPage() {
                             Nenhuma turma cadastrada. Cadastre turmas em /turmas.
                           </p>
                         ) : (
-                          classes.map((cls) => {
+                          (classes || []).map((cls) => {
                             const isChecked = selectedClassNames.includes(
                               cls.name
                             );
@@ -615,7 +615,7 @@ export default function ProfessoresPage() {
                         Adicionar Novo Vínculo&rdquo;.
                       </p>
                     ) : (
-                      assignments.map((vinc) => {
+                      (assignments || []).map((vinc) => {
                         const color = getColorOption(vinc.colorId);
                         return (
                           <div
@@ -630,7 +630,7 @@ export default function ProfessoresPage() {
                               </span>
                               <span className="text-xs text-slate-400">→</span>
                               <div className="flex flex-wrap items-center gap-1">
-                                {vinc.classNames.map((cn) => (
+                                {(vinc?.classNames || []).map((cn) => (
                                   <span
                                     key={cn}
                                     className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200/80"
