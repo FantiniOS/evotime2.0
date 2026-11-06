@@ -1,6 +1,8 @@
 import React from "react";
-import ExecutiveDashboard from "@/components/ExecutiveDashboard";
+import HomePage from "@/app/page";
 
-export default function DashboardRoutePage() {
-  return <ExecutiveDashboard />;
+export const dynamic = "force-dynamic";
+
+export default async function DashboardRoutePage() {
+  return <HomePage />;
 }

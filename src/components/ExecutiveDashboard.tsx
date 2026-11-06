@@ -201,12 +201,30 @@ const cardVariants = {
   },
 };
 
-export default function ExecutiveDashboard() {
-  const [activeSchool, setActiveSchool] = useState<SchoolTenant>(
-    SCHOOLS_LIST[0] || FALLBACK_EMPTY_SCHOOL
+export interface ExecutiveDashboardProps {
+  initialSchools?: SchoolTenant[];
+  initialStats?: {
+    teachersCount: number;
+    classesCount: number;
+  };
+}
+
+export default function ExecutiveDashboard({
+  initialSchools = [],
+  initialStats,
+}: ExecutiveDashboardProps = {}) {
+  const [activeSchool, setActiveSchool] = useState<SchoolTenant>(() => {
+    if (initialSchools && initialSchools.length > 0) {
+      return initialSchools[0];
+    }
+    return SCHOOLS_LIST[0] || FALLBACK_EMPTY_SCHOOL;
+  });
+  const [teachersCount, setTeachersCount] = useState<number>(
+    initialStats?.teachersCount || 0
   );
-  const [teachersCount, setTeachersCount] = useState<number>(0);
-  const [classesCount, setClassesCount] = useState<number>(0);
+  const [classesCount, setClassesCount] = useState<number>(
+    initialStats?.classesCount || 0
+  );
   const [conflictsCount, setConflictsCount] = useState<number>(0);
   const [allocatedPercent, setAllocatedPercent] = useState<number>(0);
   const [workload, setWorkload] = useState<DailyWorkloadData[]>([]);
@@ -215,7 +233,10 @@ export default function ExecutiveDashboard() {
   useEffect(() => {
     const syncSchool = () => {
       try {
-        let list = SCHOOLS_LIST;
+        let list =
+          initialSchools && initialSchools.length > 0
+            ? initialSchools
+            : SCHOOLS_LIST;
         const savedList = localStorage.getItem(SCHOOLS_STORAGE_KEY);
         if (savedList) {
           const parsed = JSON.parse(savedList);
