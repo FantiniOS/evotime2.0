@@ -5,20 +5,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { loginSchema } from "@/lib/security/authSchema";
 import { loginAction } from "@/actions/authActions";
 import {
-  SCHOOLS_LIST,
-  ACTIVE_SCHOOL_STORAGE_KEY,
-  FALLBACK_EMPTY_SCHOOL,
-} from "@/lib/schoolData";
-import {
   CalendarClock,
   Lock,
   Mail,
   ShieldCheck,
   ArrowRight,
   AlertCircle,
-  Building2,
   Eye,
   EyeOff,
+  Loader2,
 } from "lucide-react";
 
 function LoginFormContent() {
@@ -28,9 +23,6 @@ function LoginFormContent() {
 
   const [email, setEmail] = useState("coordenacao@evotime.edu.br");
   const [password, setPassword] = useState("EvoTime@2026");
-  const [schoolId, setSchoolId] = useState(
-    SCHOOLS_LIST[0]?.id || FALLBACK_EMPTY_SCHOOL.id
-  );
   const [showPassword, setShowPassword] = useState(false);
 
   const [fieldErrors, setFieldErrors] = useState<{
@@ -45,8 +37,8 @@ function LoginFormContent() {
     setFieldErrors({});
     setServerError(null);
 
-    // 1. Validação no Cliente com Zod antes do envio
-    const parsed = loginSchema.safeParse({ email, password, schoolId });
+    // 1. Validação com Zod no cliente
+    const parsed = loginSchema.safeParse({ email, password });
     if (!parsed.success) {
       const flat = parsed.error.flatten().fieldErrors;
       setFieldErrors({
@@ -59,9 +51,8 @@ function LoginFormContent() {
     setIsLoading(true);
 
     try {
-      // 2. Autenticação no Servidor via Server Action (grava cookie HttpOnly, Secure, SameSite=Lax com school_id)
-      // O token de acesso NUNCA é salvo em localStorage ou manipulado via JS no cliente.
-      const result = await loginAction({ email, password, schoolId });
+      // 2. Autenticação Global no Supabase Auth
+      const result = await loginAction({ email, password });
 
       if (!result.success) {
         setFieldErrors({
@@ -71,18 +62,6 @@ function LoginFormContent() {
         setServerError(result.error || "Falha ao autenticar sessão.");
         setIsLoading(false);
         return;
-      }
-
-      // Sincroniza apenas o identificador visual da UI (nunca o token de acesso)
-      if (result.sessionContext?.schoolId) {
-        try {
-          localStorage.setItem(
-            ACTIVE_SCHOOL_STORAGE_KEY,
-            result.sessionContext.schoolId
-          );
-        } catch {
-          // Ignora erro
-        }
       }
 
       router.push(callbackUrl);
@@ -106,11 +85,11 @@ function LoginFormContent() {
               EvoTime 2.0
             </h1>
             <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200">
-              Multi-Tenant
+              Acesso Global
             </span>
           </div>
           <p className="text-xs text-slate-500">
-            Gestão de sessão segura com Cookies HttpOnly & Validação Zod
+            Ambiente seguro autenticado com Supabase Auth
           </p>
         </div>
 
@@ -122,9 +101,7 @@ function LoginFormContent() {
                 Entrar na Plataforma
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Informe suas credenciais para vincular o{" "}
-                <code className="text-indigo-600 font-semibold">school_id</code>{" "}
-                à sessão.
+                Informe seu e-mail e senha para acessar o painel.
               </p>
             </div>
             <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0">
@@ -201,7 +178,7 @@ function LoginFormContent() {
                       }));
                     }
                   }}
-                  placeholder="Mínimo de 8 caracteres"
+                  placeholder="Mínimo de 6 caracteres"
                   className={`w-full pl-10 pr-10 py-3 rounded-xl bg-slate-50 border text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:ring-2 transition-all ${
                     fieldErrors.password
                       ? "border-red-400 focus:border-red-500 focus:ring-red-500/20"
@@ -211,7 +188,7 @@ function LoginFormContent() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                   aria-label="Alternar visibilidade da senha"
                 >
                   {showPassword ? (
@@ -229,60 +206,36 @@ function LoginFormContent() {
               )}
             </div>
 
-            {/* Instituição Inicial (Registra school_id na sessão do servidor) */}
-            <div>
-              <label
-                htmlFor="login-school"
-                className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5"
-              >
-                Unidade Escolar (Contexto <code className="lowercase">school_id</code>)
-              </label>
-              <div className="relative">
-                <Building2 className="w-4 h-4 text-indigo-600 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <select
-                  id="login-school"
-                  value={schoolId}
-                  onChange={(e) => setSchoolId(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
-                >
-                  {SCHOOLS_LIST.length === 0 ? (
-                    <option value={FALLBACK_EMPTY_SCHOOL.id}>
-                      {FALLBACK_EMPTY_SCHOOL.name} (Padrão)
-                    </option>
-                  ) : (
-                    SCHOOLS_LIST.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} (school_id: {s.id})
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-            </div>
-
             <button
               type="submit"
               disabled={isLoading}
               className="w-full py-3.5 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-bold shadow-sm shadow-indigo-500/20 hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>
-                {isLoading ? "Validando e Criando Sessão..." : "Entrar"}
-              </span>
-              <ArrowRight className="w-4 h-4" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Autenticando...</span>
+                </>
+              ) : (
+                <>
+                  <span>Entrar</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
 
-          {/* Rodapé Técnico de Segurança */}
+          {/* Rodapé de Segurança */}
           <div className="pt-4 border-t border-slate-100 space-y-1 text-[11px] text-slate-400">
             <p className="flex items-center justify-between">
-              <span>Armazenamento do Token:</span>
+              <span>Autenticação:</span>
               <strong className="text-emerald-700 font-semibold">
-                Cookie HttpOnly • SameSite=Lax
+                Supabase Auth • Sessão Segura
               </strong>
             </p>
             <p className="flex items-center justify-between">
-              <span>Proteção XSS (Sem localStorage):</span>
-              <strong className="text-slate-700">Ativa (HMAC-SHA256)</strong>
+              <span>Sessão:</span>
+              <strong className="text-slate-700">Cookie HttpOnly (Edge)</strong>
             </p>
           </div>
         </div>
