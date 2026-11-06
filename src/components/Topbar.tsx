@@ -421,6 +421,20 @@ export default function Topbar() {
                   </Link>
 
                   <Link
+                    href="/usuarios"
+                    onClick={() => setIsDropdownOpen(false)}
+                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 flex items-center justify-between transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Users className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Gestão da Equipe & Acessos</span>
+                    </span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700">
+                      /usuarios
+                    </span>
+                  </Link>
+
+                  <Link
                     href="/configuracoes"
                     onClick={() => setIsDropdownOpen(false)}
                     className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 flex items-center justify-between transition-colors"
@@ -514,6 +528,18 @@ export default function Topbar() {
             }`}
           >
             <Printer className="w-4 h-4" />
+          </Link>
+
+          <Link
+            href="/usuarios"
+            title="Gestão de Equipe & Usuários (/usuarios)"
+            className={`p-2 rounded-xl border transition-all duration-200 ${
+              pathname.startsWith("/usuarios")
+                ? "bg-indigo-50 border-indigo-200 text-indigo-600"
+                : "bg-slate-50 hover:bg-slate-100 border-slate-200/80 text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Users className="w-4 h-4" />
           </Link>
 
           <Link

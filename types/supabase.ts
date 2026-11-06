@@ -165,6 +165,47 @@ export type Database = {
           }
         ];
       };
+      usuarios: {
+        Row: {
+          id: string;
+          nome: string;
+          email: string;
+          role: "admin" | "coordenador" | "diretor" | "professor";
+          escola_id: string | null;
+          avatar_url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          nome: string;
+          email: string;
+          role?: "admin" | "coordenador" | "diretor" | "professor";
+          escola_id?: string | null;
+          avatar_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          nome?: string;
+          email?: string;
+          role?: "admin" | "coordenador" | "diretor" | "professor";
+          escola_id?: string | null;
+          avatar_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "usuarios_escola_id_fkey";
+            columns: ["escola_id"];
+            isOneToOne: false;
+            referencedRelation: "escolas";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
