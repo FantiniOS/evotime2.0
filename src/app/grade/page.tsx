@@ -51,7 +51,7 @@ import {
   Settings2,
 } from "lucide-react";
 
-export type SubjectTone =
+type SubjectTone =
   | "blue"
   | "emerald"
   | "amber"
@@ -59,7 +59,7 @@ export type SubjectTone =
   | "teal"
   | "orange";
 
-export interface LessonBlock {
+interface LessonBlock {
   id: string;
   subject: string;
   teacher: string;
@@ -68,9 +68,9 @@ export interface LessonBlock {
   conflictReason?: string;
 }
 
-export type DayKey = "seg" | "ter" | "qua" | "qui" | "sex";
+type DayKey = "seg" | "ter" | "qua" | "qui" | "sex";
 
-export interface DayColumnConfig {
+interface DayColumnConfig {
   key: DayKey;
   dayIndex: number; // 0 a 4
   dayNumber: number; // 1 a 5 (para slot_dia_X)
@@ -79,7 +79,7 @@ export interface DayColumnConfig {
   full: string;
 }
 
-export const DAYS: DayColumnConfig[] = [
+const DAYS: DayColumnConfig[] = [
   {
     key: "seg",
     dayIndex: 0,
@@ -126,7 +126,7 @@ export const DAYS: DayColumnConfig[] = [
  * Gera o identificador único do Slot Droppable cruzando Dia da Semana e Período
  * Exemplo estrito do prompt: "slot_dia_1_aula_4", "slot_dia_2_aula_2"
  */
-export function buildSlotId(
+function buildSlotId(
   dayNumberOrKey: number | DayKey,
   aulaNumero: number
 ): string {
@@ -143,7 +143,7 @@ export function buildSlotId(
 /**
  * Faz o parse reverso do identificador do slot para obter dia e aula
  */
-export function parseSlotId(
+function parseSlotId(
   slotId: string
 ): { dayKey: DayKey; dayNumber: number; dayIndex: number; aulaNumero: number } | null {
   // Padrão do prompt: slot_dia_1_aula_4
