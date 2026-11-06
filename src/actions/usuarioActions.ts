@@ -4,14 +4,23 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { createClient } from "@/utils/supabase/server";
+import {
+  usernameToEmail,
+  emailToUsername,
+  sanitizeUsername,
+} from "@/lib/auth/emailMapping";
 
 const criarUsuarioSchema = z.object({
   nome: z.string().trim().min(2, "O nome deve ter no mínimo 2 caracteres."),
-  email: z
+  username: z
     .string()
     .trim()
-    .min(1, "O e-mail é obrigatório.")
-    .email("Informe um e-mail válido."),
+    .min(3, "O nome de usuário deve ter no mínimo 3 caracteres.")
+    .max(50, "O nome de usuário deve ter no máximo 50 caracteres.")
+    .regex(
+      /^[a-zA-Z0-9._-]+$/,
+      "O usuário deve conter apenas letras, números, pontos, hífens ou underscores (sem espaços)."
+    ),
   senha: z
     .string()
     .min(6, "A senha provisória deve ter no mínimo 6 caracteres.")
@@ -31,6 +40,7 @@ export interface CriarUsuarioResult {
 export interface UsuarioItem {
   id: string;
   nome: string;
+  username: string;
   email: string;
   role: "admin" | "coordenador" | "diretor" | "professor";
   escola_id: string | null;
@@ -40,8 +50,9 @@ export interface UsuarioItem {
 
 /**
  * Server Action: criarUsuario
- * Utiliza a SUPABASE_SERVICE_ROLE_KEY para criar a conta no Supabase Auth (auth.admin.createUser)
- * sem interferir na sessão do usuário atual, e cadastra o registro na tabela `usuarios`.
+ * Utiliza a SUPABASE_SERVICE_ROLE_KEY para criar a conta no Supabase Auth via auth.admin.createUser
+ * com Email Mapping automático (ex: carlos -> carlos@evotime.local).
+ * Não interfere na sessão do usuário atual e grava o registro na tabela `usuarios`.
  */
 export async function criarUsuario(
   formData: FormData
@@ -49,7 +60,7 @@ export async function criarUsuario(
   try {
     const rawData = {
       nome: formData.get("nome")?.toString()?.trim() || "",
-      email: formData.get("email")?.toString()?.trim() || "",
+      username: formData.get("username")?.toString()?.trim() || "",
       senha: formData.get("senha")?.toString()?.trim() || "",
       role: (formData.get("role")?.toString()?.trim() || "coordenador") as any,
       escolaId: formData.get("escolaId")?.toString()?.trim() || null,
@@ -66,7 +77,9 @@ export async function criarUsuario(
       };
     }
 
-    const { nome, email, senha, role, escolaId } = parsed.data;
+    const { nome, username, senha, role, escolaId } = parsed.data;
+    const cleanUsername = sanitizeUsername(username);
+    const generatedEmail = usernameToEmail(cleanUsername);
 
     // 1. Instancia o cliente administrativo (Admin Client)
     let adminClient;
@@ -85,11 +98,12 @@ export async function criarUsuario(
     // 2. Cria o usuário no Supabase Auth via auth.admin.createUser
     const { data: authUser, error: authError } =
       await adminClient.auth.admin.createUser({
-        email,
+        email: generatedEmail,
         password: senha,
         email_confirm: true,
         user_metadata: {
           nome,
+          username: cleanUsername,
           role,
         },
       });
@@ -100,7 +114,7 @@ export async function criarUsuario(
         success: false,
         error:
           authError.message === "Email address already registered"
-            ? "Este endereço de e-mail já está cadastrado no sistema."
+            ? `O nome de usuário "${cleanUsername}" já está em uso.`
             : authError.message,
       };
     }
@@ -112,31 +126,54 @@ export async function criarUsuario(
       };
     }
 
-    // 3. Insere os dados na tabela public.usuarios
-    const { data: dbData, error: dbError } = await adminClient
+    // 3. Insere os dados na tabela public.usuarios (com username e email mapeado)
+    let insertPayload: any = {
+      id: authUser.user.id,
+      nome,
+      username: cleanUsername,
+      email: generatedEmail,
+      role,
+      escola_id: escolaId && escolaId.length > 5 ? escolaId : null,
+    };
+
+    let { data: dbData, error: dbError } = await adminClient
       .from("usuarios")
-      .insert({
-        id: authUser.user.id,
-        nome,
-        email,
-        role,
-        escola_id: escolaId && escolaId.length > 5 ? escolaId : null,
-      })
+      .insert(insertPayload)
       .select()
       .single();
+
+    // Fallback defensivo: se a coluna 'username' ainda não existir no banco, tenta sem ela
+    if (
+      dbError &&
+      (dbError.message.includes("username") ||
+        dbError.message.includes("column") ||
+        dbError.code === "PGRST204")
+    ) {
+      delete insertPayload.username;
+      const retryResult = await adminClient
+        .from("usuarios")
+        .insert(insertPayload)
+        .select()
+        .single();
+      dbData = retryResult.data;
+      dbError = retryResult.error;
+    }
 
     if (dbError) {
       console.error("[criarUsuario] Erro ao gravar na tabela usuarios:", dbError);
       // Se a tabela ainda não tiver sido criada pelo script SQL:
-      if (dbError.code === "PGRST205" || dbError.message.includes("does not exist")) {
+      if (
+        dbError.code === "PGRST205" ||
+        dbError.message.includes("does not exist")
+      ) {
         return {
           success: true,
-          message:
-            "Usuário convidado com sucesso no Supabase Auth! (Lembre-se de rodar o script database/usuarios_schema.sql no painel)",
+          message: `Usuário @${cleanUsername} criado com sucesso no Auth! (Execute database/usuarios_schema.sql no painel)`,
           data: {
             id: authUser.user.id,
             nome,
-            email,
+            username: cleanUsername,
+            email: generatedEmail,
             role,
           },
         };
@@ -151,7 +188,7 @@ export async function criarUsuario(
 
     return {
       success: true,
-      message: "Usuário convidado com sucesso",
+      message: `Usuário @${cleanUsername} convidado com sucesso`,
       data: dbData,
     };
   } catch (err) {
@@ -166,7 +203,7 @@ export async function criarUsuario(
 
 /**
  * Server Action: listarUsuarios
- * Retorna todos os usuários cadastrados na tabela `usuarios`.
+ * Retorna todos os usuários cadastrados com suporte a username e fallback.
  */
 export async function listarUsuarios(): Promise<{
   success: boolean;
@@ -176,12 +213,13 @@ export async function listarUsuarios(): Promise<{
   try {
     const supabase = await createClient();
 
-    // Tenta buscar na tabela public.usuarios com join na tabela escolas
-    const { data, error } = await supabase
+    // 1. Tenta buscar na tabela public.usuarios incluindo a coluna username
+    let { data, error } = await supabase
       .from("usuarios")
       .select(`
         id,
         nome,
+        username,
         email,
         role,
         escola_id,
@@ -192,6 +230,26 @@ export async function listarUsuarios(): Promise<{
       `)
       .order("created_at", { ascending: false });
 
+    // Fallback se a coluna username ainda não tiver sido criada
+    if (error && error.message.includes("username")) {
+      const fallbackQuery = await supabase
+        .from("usuarios")
+        .select(`
+          id,
+          nome,
+          email,
+          role,
+          escola_id,
+          created_at,
+          escolas:escola_id (
+            nome
+          )
+        `)
+        .order("created_at", { ascending: false });
+      data = fallbackQuery.data as any;
+      error = fallbackQuery.error;
+    }
+
     if (error) {
       console.warn("[listarUsuarios] Aviso ao consultar usuarios:", error.message);
 
@@ -201,15 +259,24 @@ export async function listarUsuarios(): Promise<{
         const { data: authList, error: authListError } =
           await admin.auth.admin.listUsers();
         if (!authListError && authList?.users) {
-          const mapped: UsuarioItem[] = authList.users.map((u) => ({
-            id: u.id,
-            nome: (u.user_metadata?.nome as string) || u.email?.split("@")[0] || "Membro da Equipe",
-            email: u.email || "",
-            role: (u.user_metadata?.role as any) || "coordenador",
-            escola_id: null,
-            escola_nome: "Acesso Global",
-            created_at: u.created_at,
-          }));
+          const mapped: UsuarioItem[] = authList.users.map((u) => {
+            const cleanUser =
+              (u.user_metadata?.username as string) ||
+              emailToUsername(u.email || "");
+            return {
+              id: u.id,
+              nome:
+                (u.user_metadata?.nome as string) ||
+                cleanUser ||
+                "Membro da Equipe",
+              username: cleanUser,
+              email: u.email || "",
+              role: (u.user_metadata?.role as any) || "coordenador",
+              escola_id: null,
+              escola_nome: "Acesso Global",
+              created_at: u.created_at,
+            };
+          });
           return { success: true, data: mapped };
         }
       } catch {
@@ -222,10 +289,13 @@ export async function listarUsuarios(): Promise<{
     const mapped: UsuarioItem[] = (data || []).map((row: any) => ({
       id: row.id,
       nome: row.nome,
+      username: row.username || emailToUsername(row.email),
       email: row.email,
       role: row.role,
       escola_id: row.escola_id,
-      escola_nome: row.escolas?.nome || (row.escola_id ? "Escola Vinculada" : "Acesso Global"),
+      escola_nome:
+        row.escolas?.nome ||
+        (row.escola_id ? "Escola Vinculada" : "Acesso Global"),
       created_at: row.created_at,
     }));
 

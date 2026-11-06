@@ -169,6 +169,7 @@ export type Database = {
         Row: {
           id: string;
           nome: string;
+          username: string | null;
           email: string;
           role: "admin" | "coordenador" | "diretor" | "professor";
           escola_id: string | null;
@@ -179,6 +180,7 @@ export type Database = {
         Insert: {
           id: string;
           nome: string;
+          username?: string | null;
           email: string;
           role?: "admin" | "coordenador" | "diretor" | "professor";
           escola_id?: string | null;
@@ -189,6 +191,7 @@ export type Database = {
         Update: {
           id?: string;
           nome?: string;
+          username?: string | null;
           email?: string;
           role?: "admin" | "coordenador" | "diretor" | "professor";
           escola_id?: string | null;

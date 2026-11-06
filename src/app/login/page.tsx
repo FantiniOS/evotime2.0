@@ -7,7 +7,7 @@ import { loginAction } from "@/actions/authActions";
 import {
   CalendarClock,
   Lock,
-  Mail,
+  User,
   ShieldCheck,
   ArrowRight,
   AlertCircle,
@@ -21,12 +21,12 @@ function LoginFormContent() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
-  const [email, setEmail] = useState("coordenacao@evotime.edu.br");
+  const [username, setUsername] = useState("coordenador");
   const [password, setPassword] = useState("EvoTime@2026");
   const [showPassword, setShowPassword] = useState(false);
 
   const [fieldErrors, setFieldErrors] = useState<{
-    email?: string;
+    username?: string;
     password?: string;
   }>({});
   const [serverError, setServerError] = useState<string | null>(null);
@@ -37,12 +37,12 @@ function LoginFormContent() {
     setFieldErrors({});
     setServerError(null);
 
-    // 1. Validação com Zod no cliente
-    const parsed = loginSchema.safeParse({ email, password });
+    // 1. Validação com Zod no cliente (permite username simples: letras, números, pontos)
+    const parsed = loginSchema.safeParse({ username, password });
     if (!parsed.success) {
       const flat = parsed.error.flatten().fieldErrors;
       setFieldErrors({
-        email: flat.email?.[0],
+        username: flat.username?.[0],
         password: flat.password?.[0],
       });
       return;
@@ -51,12 +51,12 @@ function LoginFormContent() {
     setIsLoading(true);
 
     try {
-      // 2. Autenticação Global no Supabase Auth
-      const result = await loginAction({ email, password });
+      // 2. Autenticação no Supabase Auth com Email Mapping automático no servidor
+      const result = await loginAction({ username, password });
 
       if (!result.success) {
         setFieldErrors({
-          email: result.fieldErrors?.email?.[0],
+          username: result.fieldErrors?.username?.[0],
           password: result.fieldErrors?.password?.[0],
         });
         setServerError(result.error || "Falha ao autenticar sessão.");
@@ -85,7 +85,7 @@ function LoginFormContent() {
               EvoTime 2.0
             </h1>
             <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200">
-              Acesso Global
+              Acesso Rápido
             </span>
           </div>
           <p className="text-xs text-slate-500">
@@ -101,7 +101,7 @@ function LoginFormContent() {
                 Entrar na Plataforma
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Informe seu e-mail e senha para acessar o painel.
+                Informe seu nome de usuário e senha para acessar o painel.
               </p>
             </div>
             <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0">
@@ -117,39 +117,48 @@ function LoginFormContent() {
           )}
 
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
-            {/* Campo: Email */}
+            {/* Campo: Usuário */}
             <div>
-              <label
-                htmlFor="login-email"
-                className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5"
-              >
-                Email
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label
+                  htmlFor="login-username"
+                  className="block text-xs font-bold uppercase tracking-wider text-slate-700"
+                >
+                  Usuário
+                </label>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  login direto
+                </span>
+              </div>
               <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
-                  id="login-email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
+                  id="login-username"
+                  name="username"
+                  type="text"
+                  autoComplete="username"
+                  value={username}
                   onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (fieldErrors.email) {
-                      setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                    setUsername(e.target.value);
+                    if (fieldErrors.username) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        username: undefined,
+                      }));
                     }
                   }}
-                  placeholder="coordenacao@escola.edu.br"
+                  placeholder="Ex: carlos ou coordenador"
                   className={`w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:ring-2 transition-all ${
-                    fieldErrors.email
+                    fieldErrors.username
                       ? "border-red-400 focus:border-red-500 focus:ring-red-500/20"
                       : "border-slate-200 focus:border-indigo-500 focus:ring-indigo-500/20"
                   }`}
                 />
               </div>
-              {fieldErrors.email && (
+              {fieldErrors.username && (
                 <p className="mt-1.5 text-xs font-semibold text-red-600 flex items-center gap-1">
                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                  <span>{fieldErrors.email}</span>
+                  <span>{fieldErrors.username}</span>
                 </p>
               )}
             </div>
@@ -166,6 +175,7 @@ function LoginFormContent() {
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   id="login-password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   value={password}
@@ -230,7 +240,7 @@ function LoginFormContent() {
             <p className="flex items-center justify-between">
               <span>Autenticação:</span>
               <strong className="text-emerald-700 font-semibold">
-                Supabase Auth • Sessão Segura
+                Supabase Auth • Username Mapping
               </strong>
             </p>
             <p className="flex items-center justify-between">

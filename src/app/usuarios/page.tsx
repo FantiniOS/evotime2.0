@@ -9,6 +9,10 @@ import {
   UsuarioItem,
 } from "@/actions/usuarioActions";
 import { listarEscolas } from "@/actions/escolaActions";
+import {
+  emailToUsername,
+  sanitizeUsername,
+} from "@/lib/auth/emailMapping";
 import { toast } from "sonner";
 import {
   Users,
@@ -31,6 +35,7 @@ import {
   KeyRound,
   GraduationCap,
   Sparkles,
+  AtSign,
 } from "lucide-react";
 
 export default function UsuariosPage() {
@@ -42,9 +47,9 @@ export default function UsuariosPage() {
   const [roleFilter, setRoleFilter] = useState<string>("todos");
   const [showPassword, setShowPassword] = useState(false);
 
-  // Form states
+  // Estados do formulário de criação
   const [nome, setNome] = useState("");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [senha, setSenha] = useState("");
   const [role, setRole] = useState<"admin" | "coordenador" | "diretor">("coordenador");
   const [escolaId, setEscolaId] = useState("");
@@ -84,7 +89,7 @@ export default function UsuariosPage() {
 
   const handleOpenModal = () => {
     setNome("");
-    setEmail("");
+    setUsername("");
     setSenha("");
     setRole("coordenador");
     setEscolaId(escolas[0]?.id || "");
@@ -103,8 +108,15 @@ export default function UsuariosPage() {
     e.preventDefault();
     setFormError(null);
 
-    if (!nome.trim() || !email.trim() || !senha.trim()) {
+    const cleanUser = sanitizeUsername(username);
+
+    if (!nome.trim() || !cleanUser || !senha.trim()) {
       setFormError("Preencha todos os campos obrigatórios.");
+      return;
+    }
+
+    if (cleanUser.length < 3) {
+      setFormError("O nome de usuário deve ter no mínimo 3 caracteres.");
       return;
     }
 
@@ -115,7 +127,7 @@ export default function UsuariosPage() {
 
     const formData = new FormData();
     formData.append("nome", nome);
-    formData.append("email", email);
+    formData.append("username", cleanUser);
     formData.append("senha", senha);
     formData.append("role", role);
     formData.append("escolaId", escolaId);
@@ -125,7 +137,7 @@ export default function UsuariosPage() {
 
       if (result.success) {
         toast.success(result.message || "Usuário convidado com sucesso", {
-          description: `Credenciais provisórias geradas para ${email}.`,
+          description: `Login criado para @${cleanUser}. Senha provisória configurada.`,
         });
         setIsModalOpen(false);
         carregarDados();
@@ -139,9 +151,10 @@ export default function UsuariosPage() {
   };
 
   const handleExcluir = async (usuario: UsuarioItem) => {
+    const userDisplay = usuario.username || emailToUsername(usuario.email);
     if (
       !confirm(
-        `Tem certeza que deseja remover o acesso de "${usuario.nome}" (${usuario.email})?`
+        `Tem certeza que deseja remover o acesso de "${usuario.nome}" (@${userDisplay})?`
       )
     ) {
       return;
@@ -161,10 +174,12 @@ export default function UsuariosPage() {
   };
 
   const usuariosFiltrados = usuarios.filter((u) => {
+    const q = searchQuery.toLowerCase();
     const matchSearch =
-      u.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (u.escola_nome && u.escola_nome.toLowerCase().includes(searchQuery.toLowerCase()));
+      u.nome.toLowerCase().includes(q) ||
+      (u.username && u.username.toLowerCase().includes(q)) ||
+      u.email.toLowerCase().includes(q) ||
+      (u.escola_nome && u.escola_nome.toLowerCase().includes(q));
 
     const matchRole =
       roleFilter === "todos" ? true : u.role.toLowerCase() === roleFilter.toLowerCase();
@@ -209,6 +224,8 @@ export default function UsuariosPage() {
     return nameStr.slice(0, 2).toUpperCase();
   };
 
+  const previewUsername = sanitizeUsername(username) || "usuario";
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <Topbar />
@@ -226,7 +243,7 @@ export default function UsuariosPage() {
                   Gestão de Equipe & Permissões
                 </h1>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Cadastre novos usuários no Supabase Auth e atribua níveis de acesso (Admin, Coordenador, Diretor).
+                  Cadastre novos usuários com Nome de Usuário (login direto) e atribua níveis de acesso.
                 </p>
               </div>
             </div>
@@ -260,10 +277,10 @@ export default function UsuariosPage() {
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-purple-600">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Administradores
               </span>
-              <p className="text-2xl font-black text-purple-950 mt-1">
+              <p className="text-2xl font-black text-purple-700 mt-1">
                 {totalAdmins}
               </p>
             </div>
@@ -274,10 +291,10 @@ export default function UsuariosPage() {
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Coordenadores
               </span>
-              <p className="text-2xl font-black text-indigo-950 mt-1">
+              <p className="text-2xl font-black text-indigo-700 mt-1">
                 {totalCoordenadores}
               </p>
             </div>
@@ -287,16 +304,16 @@ export default function UsuariosPage() {
           </div>
         </div>
 
-        {/* Filtros e Busca */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+        {/* Barra de Filtros e Busca */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar por nome, e-mail ou escola..."
-              className="w-full pl-10 pr-4 py-2 text-xs font-medium text-slate-900 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400"
+              placeholder="Buscar por nome, usuário (@username) ou e-mail..."
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
             />
           </div>
 
@@ -344,7 +361,7 @@ export default function UsuariosPage() {
               <p className="text-xs text-slate-500 mt-1 mb-5">
                 {searchQuery || roleFilter !== "todos"
                   ? "Tente ajustar os filtros ou a busca digitada."
-                  : "Convide coordenadores, administradores e diretores para gerenciar a escola."}
+                  : "Convide coordenadores, administradores e diretores com nome de usuário direto."}
               </p>
               <button
                 type="button"
@@ -357,53 +374,59 @@ export default function UsuariosPage() {
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {usuariosFiltrados.map((u) => (
-                <div
-                  key={u.id}
-                  className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/70 transition-colors"
-                >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
-                      {getInitials(u.nome)}
+              {usuariosFiltrados.map((u) => {
+                const userTag = u.username || emailToUsername(u.email);
+                return (
+                  <div
+                    key={u.id}
+                    className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/70 transition-colors"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
+                        {getInitials(u.nome)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-bold text-slate-900 truncate">
+                            {u.nome}
+                          </p>
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-indigo-700 font-mono border border-slate-200">
+                            @{userTag}
+                          </span>
+                          {getRoleBadge(u.role)}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 truncate">
+                          <span className="flex items-center gap-1 text-slate-400 text-[11px] font-mono">
+                            <Mail className="w-3 h-3 text-slate-400" />
+                            <span>{u.email}</span>
+                          </span>
+                          <span>•</span>
+                          <span className="flex items-center gap-1 text-slate-500">
+                            <Building2 className="w-3.5 h-3.5 text-indigo-500" />
+                            <span>{u.escola_nome || "Acesso Global"}</span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-bold text-slate-900 truncate">
-                          {u.nome}
-                        </p>
-                        {getRoleBadge(u.role)}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 truncate">
-                        <span className="flex items-center gap-1 text-slate-600">
-                          <Mail className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{u.email}</span>
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1 text-slate-500">
-                          <Building2 className="w-3.5 h-3.5 text-indigo-500" />
-                          <span>{u.escola_nome || "Acesso Global"}</span>
-                        </span>
-                      </div>
+
+                    <div className="flex items-center gap-3 justify-end shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Login Ativo</span>
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => handleExcluir(u)}
+                        title="Excluir Usuário"
+                        className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-3 justify-end shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span>Ativo no Supabase</span>
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={() => handleExcluir(u)}
-                      title="Excluir Usuário"
-                      className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -424,7 +447,7 @@ export default function UsuariosPage() {
                     Convidar Novo Usuário
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Cria conta no Supabase Auth e registra na equipe.
+                    Crie credenciais de acesso rápido com Nome de Usuário.
                   </p>
                 </div>
               </div>
@@ -458,28 +481,43 @@ export default function UsuariosPage() {
                     type="text"
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
-                    placeholder="Ex: Prof. Carlos Eduardo"
+                    placeholder="Ex: Carlos Eduardo"
                     required
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400"
                   />
                 </div>
               </div>
 
-              {/* E-mail Corporativo */}
+              {/* Nome de Usuário (Username / Login) */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  E-mail Corporativo *
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Nome de Usuário (Login) *
+                  </label>
+                  <span className="text-[11px] font-mono font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                    @{previewUsername}
+                  </span>
+                </div>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <AtSign className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="coordenador@escola.edu.br"
+                    type="text"
+                    value={username}
+                    onChange={(e) =>
+                      setUsername(
+                        e.target.value.toLowerCase().replace(/\s+/g, "")
+                      )
+                    }
+                    placeholder="Ex: carlos, mariana.silva, coord.unidade"
                     required
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium font-mono text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400 placeholder:font-sans"
                   />
+                </div>
+                <div className="flex items-center justify-between mt-1 text-[11px] text-slate-400">
+                  <span>Usado diretamente no login (letras, números e pontos)</span>
+                  <span className="font-mono text-slate-500">
+                    {previewUsername}@evotime.local
+                  </span>
                 </div>
               </div>
 
@@ -511,7 +549,7 @@ export default function UsuariosPage() {
                   </button>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  O usuário poderá redefinir esta senha após o primeiro login.
+                  O usuário utilizará este username e senha na tela de login.
                 </p>
               </div>
 
@@ -535,7 +573,7 @@ export default function UsuariosPage() {
                     {
                       id: "diretor",
                       label: "Diretor",
-                      desc: "Relatórios Executivos",
+                      desc: "Relatórios",
                     },
                   ].map((r) => (
                     <button

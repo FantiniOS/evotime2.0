@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { loginSchema } from "@/lib/security/authSchema";
+import { usernameToEmail } from "@/lib/auth/emailMapping";
 import {
   SESSION_COOKIE_NAME,
   signSessionToken,
@@ -14,10 +15,11 @@ export interface LoginActionResult {
   success: boolean;
   error?: string;
   fieldErrors?: {
-    email?: string[];
+    username?: string[];
     password?: string[];
   };
   sessionContext?: {
+    username: string;
     email: string;
     schoolId?: string;
     role: UserRole;
@@ -27,13 +29,14 @@ export interface LoginActionResult {
 const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 7; // 7 dias
 
 /**
- * Server Action de Login Global:
- * 1. Valida estritamente E-mail e Senha com Zod no servidor.
- * 2. Autentica no Supabase Auth via createServerClient (@supabase/ssr).
- * 3. Grava o token de sessão HTTP-Only seguro.
+ * Server Action de Login com Username (Email Mapping Oculto):
+ * 1. Valida nome de usuário e senha com Zod.
+ * 2. Converte o username para e-mail interno mapeado (ex: carlos -> carlos@evotime.local).
+ * 3. Autentica no Supabase Auth via signInWithPassword.
+ * 4. Grava o cookie HTTP-Only de sessão.
  */
 export async function loginAction(formData: {
-  email: string;
+  username: string;
   password: string;
 }): Promise<LoginActionResult> {
   const parsed = loginSchema.safeParse(formData);
@@ -44,21 +47,24 @@ export async function loginAction(formData: {
       success: false,
       error: "Verifique os campos informados antes de continuar.",
       fieldErrors: {
-        email: flattened.email,
+        username: flattened.username,
         password: flattened.password,
       },
     };
   }
 
-  const { email, password } = parsed.data;
+  const { username, password } = parsed.data;
+
+  // Interceptação: transforma o username no e-mail mapeado exigido pelo Supabase Auth
+  const mappedEmail = usernameToEmail(username);
 
   try {
     const supabase = await createClient();
 
-    // 1. Autenticação primária no Supabase Auth
+    // 1. Autenticação primária no Supabase Auth usando o e-mail mapeado
     const { data: authData, error: authError } =
       await supabase.auth.signInWithPassword({
-        email,
+        email: mappedEmail,
         password,
       });
 
@@ -68,10 +74,18 @@ export async function loginAction(formData: {
     if (authError) {
       console.warn("[Supabase Auth] Aviso no login:", authError.message);
 
-      if (email === "coordenacao@evotime.edu.br" && password === "EvoTime@2026") {
-        // Tenta auto-provisionar a conta no Supabase se ainda não existir
+      const isDefaultDemo =
+        (username.toLowerCase() === "coordenador" ||
+          username.toLowerCase() === "coordenacao" ||
+          username.toLowerCase() === "admin" ||
+          mappedEmail === "coordenacao@evotime.local" ||
+          mappedEmail === "coordenacao@evotime.edu.br") &&
+        password === "EvoTime@2026";
+
+      if (isDefaultDemo) {
+        // Tenta auto-provisionar a conta com o e-mail mapeado no Supabase Auth
         const { data: signUpData } = await supabase.auth.signUp({
-          email,
+          email: mappedEmail,
           password,
         });
         if (signUpData?.user) {
@@ -82,7 +96,7 @@ export async function loginAction(formData: {
           success: false,
           error:
             authError.message === "Invalid login credentials"
-              ? "E-mail ou senha incorretos."
+              ? "Usuário ou senha incorretos."
               : authError.message,
         };
       }
@@ -90,11 +104,17 @@ export async function loginAction(formData: {
 
     // 2. Registra o token de sessão HTTP-Only assinado (HMAC-SHA256)
     const now = Date.now();
+    const role: UserRole =
+      username.toLowerCase().includes("admin") ||
+      mappedEmail.toLowerCase().includes("admin")
+        ? "ADMIN"
+        : "COORDENADOR";
+
     const signedToken = signSessionToken({
       userId,
-      email,
+      email: mappedEmail,
       schoolId: "global",
-      role: email.toLowerCase().includes("admin") ? "ADMIN" : "COORDENADOR",
+      role,
       issuedAt: now,
       expiresAt: now + SESSION_DURATION_SECONDS * 1000,
     });
@@ -111,9 +131,10 @@ export async function loginAction(formData: {
     return {
       success: true,
       sessionContext: {
-        email,
+        username,
+        email: mappedEmail,
         schoolId: "global",
-        role: email.toLowerCase().includes("admin") ? "ADMIN" : "COORDENADOR",
+        role,
       },
     };
   } catch (err) {

@@ -3,10 +3,11 @@
 -- Execute este script no SQL Editor do Supabase (Project: shvqthjdjwtsvezveusi)
 -- =============================================================================
 
--- 1. TABELA public.usuarios
+-- 1. TABELA public.usuarios (com username único e e-mail mapeado)
 CREATE TABLE IF NOT EXISTS public.usuarios (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     nome VARCHAR(255) NOT NULL,
+    username VARCHAR(100) UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     role VARCHAR(50) NOT NULL DEFAULT 'coordenador' CHECK (role IN ('admin', 'coordenador', 'diretor', 'professor')),
     escola_id UUID REFERENCES public.escolas(id) ON DELETE SET NULL,
@@ -15,9 +16,23 @@ CREATE TABLE IF NOT EXISTS public.usuarios (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
-COMMENT ON TABLE public.usuarios IS 'Membros da equipe com perfil, permissões e vínculo institucional no EvoTime 2.0';
+COMMENT ON TABLE public.usuarios IS 'Membros da equipe com perfil, username de login, permissões e vínculo institucional no EvoTime 2.0';
+
+-- 1.1 Se a tabela já existia sem a coluna username, aplica migração idempotente:
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'usuarios' 
+        AND column_name = 'username'
+    ) THEN
+        ALTER TABLE public.usuarios ADD COLUMN username VARCHAR(100) UNIQUE;
+    END IF;
+END $$;
 
 -- 2. ÍNDICES DE PERFORMANCE
+CREATE INDEX IF NOT EXISTS idx_usuarios_username ON public.usuarios(username);
 CREATE INDEX IF NOT EXISTS idx_usuarios_email ON public.usuarios(email);
 CREATE INDEX IF NOT EXISTS idx_usuarios_escola_id ON public.usuarios(escola_id);
 CREATE INDEX IF NOT EXISTS idx_usuarios_role ON public.usuarios(role);
