@@ -10,9 +10,22 @@ export const criarEscolaSchema = z.object({
   cnpj: z.string().trim().optional().nullable(),
   modelo_ensino: z.string().trim().optional(),
   logo_data_url: z.string().optional().nullable(),
+  bloquear_aulas_geminadas: z.boolean().default(true).optional(),
+});
+
+export const salvarConfiguracoesEscolaSchema = z.object({
+  escolaId: z.string().min(1, "ID da escola é obrigatório."),
+  nome: z.string().trim().optional(),
+  cnpj: z.string().trim().optional().nullable(),
+  bloquear_aulas_geminadas: z.boolean().default(true),
+  configuracoes_ia: z.record(z.string(), z.any()).optional(),
+  turnos: z.record(z.string(), z.any()).optional(),
 });
 
 export type CriarEscolaInput = z.infer<typeof criarEscolaSchema>;
+export type SalvarConfiguracoesEscolaInput = z.infer<
+  typeof salvarConfiguracoesEscolaSchema
+>;
 
 export interface CriarEscolaResponse {
   success: boolean;
@@ -73,6 +86,10 @@ export async function criarEscola(
       subtitulo: modelo_ensino || "Ensino Fundamental e Médio",
       modelo_ensino: modelo_ensino || "Ensino Fundamental e Médio",
       logo_data_url: logo_data_url || null,
+      bloquear_aulas_geminadas:
+        parsed.data.bloquear_aulas_geminadas !== undefined
+          ? parsed.data.bloquear_aulas_geminadas
+          : true,
     };
 
     let { data, error } = await supabase
@@ -206,5 +223,91 @@ export async function obterEscolaAtivaId(): Promise<string | null> {
     return cookieStore.get("escola_ativa_id")?.value || null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Server Action: salvarConfiguracoesEscola
+ * Atualiza os parâmetros institucionais e a Hard Constraint de bloqueio de aulas geminadas no Supabase.
+ */
+export async function salvarConfiguracoesEscola(payload: {
+  escolaId: string;
+  nome?: string;
+  cnpj?: string | null;
+  bloquear_aulas_geminadas?: boolean;
+  configuracoes_ia?: Record<string, any>;
+  turnos?: Record<string, any>;
+}): Promise<{ success: boolean; error?: string; data?: any }> {
+  try {
+    const parsed = salvarConfiguracoesEscolaSchema.safeParse(payload);
+    if (!parsed.success) {
+      const firstError = Object.values(
+        parsed.error.flatten().fieldErrors
+      )[0]?.[0];
+      return {
+        success: false,
+        error: firstError || "Configurações inválidas.",
+      };
+    }
+
+    const { escolaId, nome, cnpj, bloquear_aulas_geminadas } = parsed.data;
+
+    const supabase = await createClient();
+
+    let updatePayload: any = {
+      bloquear_aulas_geminadas:
+        bloquear_aulas_geminadas !== undefined
+          ? bloquear_aulas_geminadas
+          : true,
+    };
+
+    if (nome && nome.trim().length > 0) {
+      updatePayload.nome = nome.trim();
+    }
+    if (cnpj !== undefined) {
+      updatePayload.cnpj_ou_inep =
+        cnpj && cnpj.trim().length > 0 ? cnpj.trim() : null;
+    }
+
+    let { data, error } = await supabase
+      .from("escolas")
+      .update(updatePayload)
+      .eq("id", escolaId)
+      .select()
+      .single();
+
+    // Fallback defensivo caso a coluna bloquear_aulas_geminadas ainda não tenha sido criada no banco
+    if (error && error.message.includes("bloquear_aulas_geminadas")) {
+      delete updatePayload.bloquear_aulas_geminadas;
+      const retry = await supabase
+        .from("escolas")
+        .update(updatePayload)
+        .eq("id", escolaId)
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    if (error) {
+      console.error("[salvarConfiguracoesEscola] Erro Supabase:", error);
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/configuracoes");
+    revalidatePath("/escolas");
+    revalidatePath("/dashboard");
+    revalidatePath("/grade");
+
+    return { success: true, data };
+  } catch (err) {
+    console.error("[salvarConfiguracoesEscola] Exceção:", err);
+    return {
+      success: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : "Erro inesperado ao salvar configurações.",
+    };
   }
 }

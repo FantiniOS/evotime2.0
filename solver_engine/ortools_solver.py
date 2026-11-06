@@ -182,6 +182,30 @@ def solve_school_timetable(payload: Dict[str, Any]) -> Dict[str, Any]:
                         model.Add(v == 0)
 
     # -------------------------------------------------------------------------
+    # HARD CONSTRAINT 5: Bloqueio Estrito de Aulas Geminadas
+    # Se bloquear_aulas_geminadas for True:
+    # Qualquer combinação que resulte em aula[x].materia === aula[x+1].materia
+    # na mesma turma e no mesmo dia deve ser invalidada imediatamente pelo solver CP-SAT.
+    # -------------------------------------------------------------------------
+    bloquear_aulas_geminadas = payload.get("bloquear_aulas_geminadas", True)
+    if bloquear_aulas_geminadas:
+        for c_name in classes:
+            for day in DAYS:
+                for i in range(len(periods) - 1):
+                    p1 = periods[i]
+                    p2 = periods[i + 1]
+                    for d_item in demands:
+                        if d_item["class_name"] == c_name:
+                            t_id = d_item["teacher_id"]
+                            s_id = d_item["subject_id"]
+                            # Regra Estrita: Soma de aulas da mesma matéria em slots consecutivos não pode passar de 1
+                            model.Add(
+                                x[(t_id, c_name, s_id, day, p1)]
+                                + x[(t_id, c_name, s_id, day, p2)]
+                                <= 1
+                            )
+
+    # -------------------------------------------------------------------------
     # SOFT CONSTRAINTS: Penalizar > 2 aulas consecutivas e janelas docentes
     # -------------------------------------------------------------------------
     penalty_terms = []

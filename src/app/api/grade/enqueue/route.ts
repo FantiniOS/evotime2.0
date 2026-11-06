@@ -24,6 +24,11 @@ export async function POST(request: NextRequest) {
     const turma =
       typeof body.turma === "string" ? body.turma : "1º Ano A - Ensino Médio";
     const mode = body.mode === "unfeasible" ? "unfeasible" : "optimal";
+    const constraints = body.constraints || {
+      bloquearAulasGeminadas: true,
+      avoidGaps: true,
+      enforceMaxTwoConsecutive: true,
+    };
 
     // 1. Cria e enfileira o Job de Otimização
     const job = enqueueSolverJob({
@@ -51,6 +56,7 @@ export async function POST(request: NextRequest) {
           school_id: schoolId,
           turma,
           mode,
+          constraints,
         }),
       }).catch(() => {
         // Fallback silencioso para processamento em memória

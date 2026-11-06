@@ -31,11 +31,25 @@ CREATE TABLE IF NOT EXISTS public.escolas (
     cidade VARCHAR(120),
     plano_badge VARCHAR(64) DEFAULT 'Plano Inicial',
     logo_data_url TEXT,
+    bloquear_aulas_geminadas BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
 COMMENT ON TABLE public.escolas IS 'Instituições de ensino cadastradas no ecossistema multi-tenant EvoTime 2.0';
+
+-- Migração idempotente para coluna bloquear_aulas_geminadas caso a tabela já exista:
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'escolas' 
+        AND column_name = 'bloquear_aulas_geminadas'
+    ) THEN
+        ALTER TABLE public.escolas ADD COLUMN bloquear_aulas_geminadas BOOLEAN NOT NULL DEFAULT TRUE;
+    END IF;
+END $$;
 
 CREATE OR REPLACE TRIGGER trg_escolas_updated_at
 BEFORE UPDATE ON public.escolas

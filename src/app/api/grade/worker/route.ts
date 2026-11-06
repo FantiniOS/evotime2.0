@@ -35,6 +35,12 @@ export async function POST(request: NextRequest) {
             no_teacher_overlap: true,
             respect_unavailable_slots: true,
             fulfill_exact_curriculum_hours: true,
+            // HARD CONSTRAINT: Se bloquear_aulas_geminadas for true, qualquer combinação onde
+            // aula[x].materia === aula[x+1].materia na mesma turma deve ser invalidada imediatamente.
+            bloquear_aulas_geminadas:
+              constraints?.bloquearAulasGeminadas !== undefined
+                ? Boolean(constraints.bloquearAulasGeminadas)
+                : true,
           },
           soft_constraints: {
             avoid_teacher_gaps: constraints?.avoidGaps ?? true,

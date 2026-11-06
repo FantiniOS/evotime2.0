@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Topbar from "@/components/Topbar";
+import { salvarConfiguracoesEscola } from "@/actions/escolaActions";
 import {
   SCHOOLS_LIST,
   SCHOOLS_STORAGE_KEY,
@@ -27,6 +28,8 @@ import {
   Sliders,
   Users,
   GraduationCap,
+  ShieldAlert,
+  Ban,
 } from "lucide-react";
 
 type ConfigTab = "geral" | "turnos" | "regras-ia";
@@ -47,6 +50,7 @@ interface SchoolSettingsPayload {
   aiRules: {
     allowTeacherGaps: boolean;
     enforceMaxTwoConsecutive: boolean;
+    bloquearAulasGeminadas: boolean; // Hard Constraint: Bloqueio Estrito de Aulas Geminadas
     decisionBalance: number; // 0 = Conforto do Professor, 100 = Distribuição Didática do Aluno
   };
 }
@@ -61,6 +65,7 @@ const DEFAULT_SETTINGS: SchoolSettingsPayload = {
   aiRules: {
     allowTeacherGaps: false,
     enforceMaxTwoConsecutive: true,
+    bloquearAulasGeminadas: true, // Padrão: Ativado (True)
     decisionBalance: 55,
   },
 };
@@ -192,15 +197,28 @@ export default function ConfiguracoesPage() {
   };
 
   // Salvar todas as configurações da Escola Ativa
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     try {
-      // 1. Salvar parâmetros de turnos e IA da escola ativa
+      // 1. Salvar parâmetros de turnos e IA no Supabase via Server Action
+      if (activeSchool.id && activeSchool.id !== "escola-padrao") {
+        await salvarConfiguracoesEscola({
+          escolaId: activeSchool.id,
+          nome: institutionName.trim() || activeSchool.name,
+          cnpj: cnpj.trim() || null,
+          bloquear_aulas_geminadas:
+            settings.aiRules.bloquearAulasGeminadas ?? true,
+          configuracoes_ia: settings.aiRules,
+          turnos: settings.shifts,
+        });
+      }
+
+      // 2. Salvar parâmetros de turnos e IA no cache local
       localStorage.setItem(
         `evotime_config_${activeSchool.id}`,
         JSON.stringify(settings)
       );
 
-      // 2. Atualizar dados gerais da escola ativa na lista multi-tenant
+      // 3. Atualizar dados gerais da escola ativa na lista multi-tenant
       let list = SCHOOLS_LIST;
       const savedList = localStorage.getItem(SCHOOLS_STORAGE_KEY);
       if (savedList) {
@@ -719,6 +737,73 @@ export default function ConfiguracoesPage() {
 
               {/* Toggles para Regras Pesadas */}
               <div className="space-y-4">
+                {/* Toggle HARD CONSTRAINT: Bloqueio Estrito de Aulas Geminadas */}
+                <div
+                  onClick={() =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      aiRules: {
+                        ...prev.aiRules,
+                        bloquearAulasGeminadas:
+                          !prev.aiRules.bloquearAulasGeminadas,
+                      },
+                    }))
+                  }
+                  className={`p-5 rounded-2xl border-2 transition-all duration-300 cursor-pointer flex items-center justify-between gap-4 select-none relative overflow-hidden ${
+                    settings.aiRules.bloquearAulasGeminadas
+                      ? "bg-gradient-to-r from-red-50/70 via-indigo-50/40 to-slate-50 border-red-300/80 shadow-xs"
+                      : "bg-slate-50/70 border-slate-200/80 hover:bg-slate-100/60"
+                  }`}
+                >
+                  <div className="space-y-1 pr-2">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1 rounded-lg bg-red-100 text-red-700">
+                        <ShieldAlert className="w-4 h-4" />
+                      </span>
+                      <p className="text-sm font-extrabold text-slate-900">
+                        Bloqueio Estrito de Aulas Geminadas
+                      </p>
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+                        Hard Constraint
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Impede a IA de agendar duas aulas da mesma disciplina em
+                      horários consecutivos no mesmo dia. Regra absoluta (Hard Constraint).
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={settings.aiRules.bloquearAulasGeminadas}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSettings((prev) => ({
+                        ...prev,
+                        aiRules: {
+                          ...prev.aiRules,
+                          bloquearAulasGeminadas:
+                            !prev.aiRules.bloquearAulasGeminadas,
+                        },
+                      }));
+                    }}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-all duration-300 ease-in-out focus:outline-none ${
+                      settings.aiRules.bloquearAulasGeminadas
+                        ? "bg-red-600"
+                        : "bg-slate-300"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-300 ease-in-out ${
+                        settings.aiRules.bloquearAulasGeminadas
+                          ? "translate-x-5"
+                          : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+
                 {/* Toggle 1: Permitir janelas (horários vagos) para professores se necessário? */}
                 <div
                   onClick={() =>

@@ -19,6 +19,7 @@ export type Database = {
           cidade: string | null;
           plano_badge: string | null;
           logo_data_url: string | null;
+          bloquear_aulas_geminadas: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -31,6 +32,7 @@ export type Database = {
           cidade?: string | null;
           plano_badge?: string | null;
           logo_data_url?: string | null;
+          bloquear_aulas_geminadas?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -43,6 +45,7 @@ export type Database = {
           cidade?: string | null;
           plano_badge?: string | null;
           logo_data_url?: string | null;
+          bloquear_aulas_geminadas?: boolean;
           created_at?: string;
           updated_at?: string;
         };

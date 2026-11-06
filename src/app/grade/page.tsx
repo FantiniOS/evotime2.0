@@ -870,12 +870,36 @@ export default function GradePage() {
     }
 
     try {
+      let savedConstraints = {
+        bloquearAulasGeminadas: true,
+        avoidGaps: true,
+        enforceMaxTwoConsecutive: true,
+      };
+      try {
+        const raw = localStorage.getItem(`evotime_config_${activeSchool.id}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.aiRules) {
+            savedConstraints = {
+              bloquearAulasGeminadas:
+                parsed.aiRules.bloquearAulasGeminadas !== false,
+              avoidGaps: !parsed.aiRules.allowTeacherGaps,
+              enforceMaxTwoConsecutive:
+                parsed.aiRules.enforceMaxTwoConsecutive !== false,
+            };
+          }
+        }
+      } catch {
+        // Fallback para hard constraints ativadas
+      }
+
       const res = await fetch("/api/grade/enqueue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           turma: selectedTurma,
           mode,
+          constraints: savedConstraints,
         }),
       });
 
