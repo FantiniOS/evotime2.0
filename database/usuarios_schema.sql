@@ -3,6 +3,33 @@
 -- Execute este script no SQL Editor do Supabase (Project: shvqthjdjwtsvezveusi)
 -- =============================================================================
 
+-- Habilita extensões essenciais
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Função trigger de data/hora (caso ainda não exista)
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = timezone('utc'::text, now());
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Garante que a tabela public.escolas exista previamente (para a chave estrangeira escola_id)
+CREATE TABLE IF NOT EXISTS public.escolas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nome VARCHAR(255) NOT NULL,
+    subtitulo VARCHAR(255),
+    cnpj_ou_inep VARCHAR(64),
+    modelo_ensino VARCHAR(100) DEFAULT 'Ensino Fundamental e Médio',
+    cidade VARCHAR(120),
+    plano_badge VARCHAR(64) DEFAULT 'Plano Inicial',
+    logo_data_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
 -- 1. TABELA public.usuarios (com username único e e-mail mapeado)
 CREATE TABLE IF NOT EXISTS public.usuarios (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
