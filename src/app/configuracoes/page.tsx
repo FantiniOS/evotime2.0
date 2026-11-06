@@ -393,12 +393,17 @@ export default function ConfiguracoesPage() {
 
                 {/* CNPJ */}
                 <div>
-                  <label
-                    htmlFor="config-school-cnpj"
-                    className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2"
-                  >
-                    CNPJ
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label
+                      htmlFor="config-school-cnpj"
+                      className="block text-xs font-bold uppercase tracking-wider text-slate-700"
+                    >
+                      CNPJ
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-medium lowercase">
+                      (opcional)
+                    </span>
+                  </div>
                   <div className="relative">
                     <FileBadge className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
@@ -406,7 +411,7 @@ export default function ConfiguracoesPage() {
                       type="text"
                       value={cnpj}
                       onChange={(e) => setCnpj(e.target.value)}
-                      placeholder="Ex: 12.345.678/0001-90"
+                      placeholder="Ex: 12.345.678/0001-90 (opcional)"
                       className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                     />
                   </div>

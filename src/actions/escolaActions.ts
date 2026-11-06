@@ -2,12 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { z } from "zod";
 import { createClient } from "@/utils/supabase/server";
+
+export const criarEscolaSchema = z.object({
+  nome: z.string().trim().min(2, "O nome da instituição é obrigatório."),
+  cnpj: z.string().trim().optional().nullable(),
+  modelo_ensino: z.string().trim().optional(),
+  logo_data_url: z.string().optional().nullable(),
+});
+
+export type CriarEscolaInput = z.infer<typeof criarEscolaSchema>;
 
 export interface CriarEscolaResponse {
   success: boolean;
   data?: any;
   error?: string;
+  fieldErrors?: Record<string, string[]>;
 }
 
 export interface ListarEscolasResponse {
@@ -18,44 +29,70 @@ export interface ListarEscolasResponse {
 
 /**
  * Server Action: criarEscola
- * Insere uma nova instituição de ensino na tabela `escolas` do Supabase
- * e revalida o cache da rota `/escolas`.
+ * Insere uma nova instituição de ensino na tabela `escolas` do Supabase.
+ * O CNPJ é estritamente opcional: se vier vazio ("") ou nulo, é gravado como `null`.
  */
 export async function criarEscola(
   formData: FormData
 ): Promise<CriarEscolaResponse> {
   try {
-    const nome = formData.get("nome")?.toString()?.trim();
-    const cnpj =
-      formData.get("cnpj")?.toString()?.trim() ||
-      formData.get("cnpj_ou_inep")?.toString()?.trim() ||
-      "";
-    const modeloEnsino =
-      formData.get("modelo_ensino")?.toString()?.trim() ||
-      "Ensino Fundamental e Médio";
-    const logoDataUrl =
-      formData.get("logo_data_url")?.toString()?.trim() || null;
+    const rawData = {
+      nome: formData.get("nome")?.toString()?.trim() || "",
+      cnpj:
+        formData.get("cnpj")?.toString()?.trim() ||
+        formData.get("cnpj_ou_inep")?.toString()?.trim() ||
+        null,
+      modelo_ensino:
+        formData.get("modelo_ensino")?.toString()?.trim() ||
+        "Ensino Fundamental e Médio",
+      logo_data_url:
+        formData.get("logo_data_url")?.toString()?.trim() || null,
+    };
 
-    if (!nome) {
+    const parsed = criarEscolaSchema.safeParse(rawData);
+    if (!parsed.success) {
+      const flattened = parsed.error.flatten().fieldErrors;
+      const firstError = Object.values(flattened)[0]?.[0];
       return {
         success: false,
-        error: "O nome da instituição é obrigatório.",
+        error: firstError || "Verifique os dados informados.",
+        fieldErrors: flattened,
       };
     }
 
+    const { nome, cnpj, modelo_ensino, logo_data_url } = parsed.data;
+
+    // Converte string vazia para null explicitamente
+    const cnpjFinal = cnpj && cnpj.trim().length > 0 ? cnpj.trim() : null;
+
     const supabase = await createClient();
 
-    const { data, error } = await supabase
+    let insertPayload: any = {
+      nome,
+      cnpj_ou_inep: cnpjFinal,
+      subtitulo: modelo_ensino || "Ensino Fundamental e Médio",
+      modelo_ensino: modelo_ensino || "Ensino Fundamental e Médio",
+      logo_data_url: logo_data_url || null,
+    };
+
+    let { data, error } = await supabase
       .from("escolas")
-      .insert({
-        nome,
-        cnpj_ou_inep: cnpj,
-        subtitulo: modeloEnsino,
-        modelo_ensino: modeloEnsino,
-        logo_data_url: logoDataUrl,
-      })
+      .insert(insertPayload)
       .select()
       .single();
+
+    // Fallback defensivo caso a coluna tenha o nome 'cnpj' em vez de 'cnpj_ou_inep'
+    if (error && error.message.includes("cnpj_ou_inep")) {
+      delete insertPayload.cnpj_ou_inep;
+      insertPayload.cnpj = cnpjFinal;
+      const retryResult = await supabase
+        .from("escolas")
+        .insert(insertPayload)
+        .select()
+        .single();
+      data = retryResult.data;
+      error = retryResult.error;
+    }
 
     if (error) {
       console.error("Erro ao inserir escola no Supabase:", error);
@@ -108,14 +145,24 @@ export async function listarEscolas(): Promise<ListarEscolasResponse> {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.warn("[listarEscolas] Aviso Supabase:", error.message);
+      console.warn("Aviso ao listar escolas do Supabase:", error.message);
       return { success: false, data: [] };
     }
 
-    return { success: true, data: data || [] };
+    return {
+      success: true,
+      data: data || [],
+    };
   } catch (err) {
-    console.warn("[listarEscolas] Exceção:", err);
-    return { success: false, data: [] };
+    console.error("Exceção na Server Action listarEscolas:", err);
+    return {
+      success: false,
+      data: [],
+      error:
+        err instanceof Error
+          ? err.message
+          : "Erro inesperado ao consultar escolas.",
+    };
   }
 }
 
