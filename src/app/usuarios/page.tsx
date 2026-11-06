@@ -125,15 +125,14 @@ export default function UsuariosPage() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("nome", nome);
-    formData.append("username", cleanUser);
-    formData.append("senha", senha);
-    formData.append("role", role);
-    formData.append("escolaId", escolaId);
-
     startTransition(async () => {
-      const result = await criarUsuario(formData);
+      const result = await criarUsuario({
+        nome: nome.trim(),
+        username: cleanUser,
+        senha,
+        role,
+        escolaId: escolaId && escolaId.length > 5 ? escolaId : null,
+      });
 
       if (result.success) {
         toast.success(result.message || "Usuário convidado com sucesso", {

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { createClient } from "@/utils/supabase/server";
 import {
@@ -9,6 +10,7 @@ import {
   emailToUsername,
   sanitizeUsername,
 } from "@/lib/auth/emailMapping";
+import type { Database } from "@/types/supabase";
 
 const criarUsuarioSchema = z.object({
   nome: z.string().trim().min(2, "O nome deve ter no mínimo 2 caracteres."),
@@ -28,6 +30,16 @@ const criarUsuarioSchema = z.object({
   role: z.enum(["admin", "coordenador", "diretor", "professor"] as const),
   escolaId: z.string().optional().nullable(),
 });
+
+export type CriarUsuarioInput =
+  | FormData
+  | {
+      nome: string;
+      username: string;
+      senha: string;
+      role: "admin" | "coordenador" | "diretor" | "professor";
+      escolaId?: string | null;
+    };
 
 export interface CriarUsuarioResult {
   success: boolean;
@@ -50,21 +62,33 @@ export interface UsuarioItem {
 
 /**
  * Server Action: criarUsuario
- * Utiliza a SUPABASE_SERVICE_ROLE_KEY para criar a conta no Supabase Auth via auth.admin.createUser
- * com Email Mapping automático (ex: carlos -> carlos@evotime.local).
- * Não interfere na sessão do usuário atual e grava o registro na tabela `usuarios`.
+ * Utiliza OBRIGATORIAMENTE a SUPABASE_SERVICE_ROLE_KEY no servidor (admin client)
+ * para criar o usuário no Supabase Auth via auth.admin.createUser
+ * e gravar o registro na tabela pública `usuarios`.
+ * Não desloga o usuário ativo e trata erros com mensagens claras para o Toast.
  */
 export async function criarUsuario(
-  formData: FormData
+  input: CriarUsuarioInput
 ): Promise<CriarUsuarioResult> {
   try {
-    const rawData = {
-      nome: formData.get("nome")?.toString()?.trim() || "",
-      username: formData.get("username")?.toString()?.trim() || "",
-      senha: formData.get("senha")?.toString()?.trim() || "",
-      role: (formData.get("role")?.toString()?.trim() || "coordenador") as any,
-      escolaId: formData.get("escolaId")?.toString()?.trim() || null,
-    };
+    let rawData: any;
+    if (
+      typeof input === "object" &&
+      input !== null &&
+      "get" in input &&
+      typeof (input as any).get === "function"
+    ) {
+      const fd = input as FormData;
+      rawData = {
+        nome: fd.get("nome")?.toString()?.trim() || "",
+        username: fd.get("username")?.toString()?.trim() || "",
+        senha: fd.get("senha")?.toString()?.trim() || "",
+        role: (fd.get("role")?.toString()?.trim() || "coordenador") as any,
+        escolaId: fd.get("escolaId")?.toString()?.trim() || null,
+      };
+    } else {
+      rawData = input;
+    }
 
     const parsed = criarUsuarioSchema.safeParse(rawData);
     if (!parsed.success) {
@@ -81,21 +105,32 @@ export async function criarUsuario(
     const cleanUsername = sanitizeUsername(username);
     const generatedEmail = usernameToEmail(cleanUsername);
 
-    // 1. Instancia o cliente administrativo (Admin Client)
-    let adminClient;
-    try {
-      adminClient = createAdminClient();
-    } catch (clientErr) {
+    // 1. Instanciação obrigatória da API Admin com SUPABASE_SERVICE_ROLE_KEY
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      const msg =
+        "SUPABASE_SERVICE_ROLE_KEY ausente ou não configurada nas variáveis de ambiente. Configure-a no .env.local ou na Vercel.";
+      console.error("[criarUsuario]", msg);
       return {
         success: false,
-        error:
-          clientErr instanceof Error
-            ? clientErr.message
-            : "Chave SUPABASE_SERVICE_ROLE_KEY ausente.",
+        error: msg,
       };
     }
 
-    // 2. Cria o usuário no Supabase Auth via auth.admin.createUser
+    const adminClient = createSupabaseClient<Database>(
+      supabaseUrl,
+      serviceRoleKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
+
+    // 2. Passo 1: Registra no Supabase Auth via auth.admin.createUser
     const { data: authUser, error: authError } =
       await adminClient.auth.admin.createUser({
         email: generatedEmail,
@@ -109,7 +144,7 @@ export async function criarUsuario(
       });
 
     if (authError) {
-      console.error("[criarUsuario] Erro ao criar no Supabase Auth:", authError);
+      console.error("[criarUsuario] Erro no Supabase Auth:", authError.message);
       return {
         success: false,
         error:
@@ -122,13 +157,15 @@ export async function criarUsuario(
     if (!authUser?.user?.id) {
       return {
         success: false,
-        error: "Não foi possível obter o identificador do novo usuário.",
+        error: "Não foi possível obter o ID gerado pelo Supabase Auth.",
       };
     }
 
-    // 3. Insere os dados na tabela public.usuarios (com username e email mapeado)
+    const newUserId = authUser.user.id;
+
+    // 3. Passo 2: Insere os dados na tabela pública usuarios
     let insertPayload: any = {
-      id: authUser.user.id,
+      id: newUserId,
       nome,
       username: cleanUsername,
       email: generatedEmail,
@@ -142,7 +179,7 @@ export async function criarUsuario(
       .select()
       .single();
 
-    // Fallback defensivo: se a coluna 'username' ainda não existir no banco, tenta sem ela
+    // Fallback defensivo caso a coluna 'username' ainda não exista no banco
     if (
       dbError &&
       (dbError.message.includes("username") ||
@@ -160,7 +197,7 @@ export async function criarUsuario(
     }
 
     if (dbError) {
-      console.error("[criarUsuario] Erro ao gravar na tabela usuarios:", dbError);
+      console.error("[criarUsuario] Erro na tabela usuarios:", dbError.message);
       // Se a tabela ainda não tiver sido criada pelo script SQL:
       if (
         dbError.code === "PGRST205" ||
@@ -168,9 +205,9 @@ export async function criarUsuario(
       ) {
         return {
           success: true,
-          message: `Usuário @${cleanUsername} criado com sucesso no Auth! (Execute database/usuarios_schema.sql no painel)`,
+          message: `Usuário @${cleanUsername} criado com sucesso no Auth! (Execute database/schema_completo_evotime.sql no Supabase)`,
           data: {
-            id: authUser.user.id,
+            id: newUserId,
             nome,
             username: cleanUsername,
             email: generatedEmail,
@@ -192,11 +229,13 @@ export async function criarUsuario(
       data: dbData,
     };
   } catch (err) {
-    console.error("[criarUsuario] Exceção:", err);
+    console.error("[criarUsuario] Exceção na Server Action:", err);
     return {
       success: false,
       error:
-        err instanceof Error ? err.message : "Erro inesperado ao criar usuário.",
+        err instanceof Error
+          ? err.message
+          : "Erro inesperado ao criar usuário.",
     };
   }
 }
