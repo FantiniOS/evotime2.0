@@ -229,7 +229,7 @@ export async function criarUsuario(
       data: dbData,
     };
   } catch (err) {
-    console.error("[criarUsuario] Exceção na Server Action:", err);
+    console.error("Erro Action criarUsuario:", err);
     return {
       success: false,
       error:
@@ -290,7 +290,7 @@ export async function listarUsuarios(): Promise<{
     }
 
     if (error) {
-      console.error("Erro no Supabase ao listar usuários:", error);
+      console.error("Erro Action listarUsuarios (Supabase):", error);
 
       // Tenta fallback com adminClient se a chave estiver configurada
       try {
@@ -340,7 +340,7 @@ export async function listarUsuarios(): Promise<{
 
     return { success: true, data: mapped };
   } catch (err) {
-    console.error("[listarUsuarios] Exceção:", err);
+    console.error("Erro Action listarUsuarios:", err);
     return { success: false, data: [] };
   }
 }
@@ -369,6 +369,7 @@ export async function excluirUsuario(usuarioId: string): Promise<{
     revalidatePath("/usuarios");
     return { success: true, message: "Usuário removido com sucesso." };
   } catch (err) {
+    console.error("Erro Action excluirUsuario:", err);
     return {
       success: false,
       error:

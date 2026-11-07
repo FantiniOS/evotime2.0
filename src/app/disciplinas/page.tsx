@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import Topbar from "@/components/Topbar";
 import EmptyState from "@/components/EmptyState";
 import {
@@ -11,6 +11,12 @@ import {
   getColorOption,
 } from "@/lib/schoolData";
 import {
+  listarDisciplinas,
+  salvarDisciplina,
+  excluirDisciplina,
+} from "@/actions/disciplinaActions";
+import { toast } from "sonner";
+import {
   BookOpen,
   Plus,
   Edit3,
@@ -19,12 +25,13 @@ import {
   Palette,
   Save,
   CheckCircle2,
-  RotateCcw,
+  Loader2,
 } from "lucide-react";
 
 export default function DisciplinasPage() {
   const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   // Estado do Formulário (Coluna da Direita)
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -33,26 +40,48 @@ export default function DisciplinasPage() {
   const [selectedColorId, setSelectedColorId] = useState<string>("blue");
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
-  // Carregar do localStorage
+  // Carregar do Supabase com fallback para localStorage
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(SUBJECTS_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setSubjects(parsed);
+    async function carregarDisciplinas() {
+      try {
+        const res = await listarDisciplinas();
+        if (res.success && res.data && res.data.length > 0) {
+          const mapped: SubjectItem[] = res.data.map((d) => ({
+            id: d.id,
+            name: d.nome,
+            code: d.codigo,
+            colorId: d.cor_id,
+          }));
+          setSubjects(mapped);
+          try {
+            localStorage.setItem(SUBJECTS_STORAGE_KEY, JSON.stringify(mapped));
+          } catch {}
+          setIsLoaded(true);
+          return;
         }
-      } else {
-        setSubjects([]);
+
+        const saved = localStorage.getItem(SUBJECTS_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSubjects(parsed);
+          } else {
+            setSubjects(DEFAULT_SUBJECTS);
+          }
+        } else {
+          setSubjects(DEFAULT_SUBJECTS);
+        }
+      } catch {
+        setSubjects(DEFAULT_SUBJECTS);
+      } finally {
+        setIsLoaded(true);
       }
-    } catch {
-      setSubjects([]);
-    } finally {
-      setIsLoaded(true);
     }
+
+    carregarDisciplinas();
   }, []);
 
-  // Salvar no localStorage
+  // Salvar no localStorage para persistência offline
   useEffect(() => {
     if (!isLoaded) return;
     try {
@@ -85,16 +114,28 @@ export default function DisciplinasPage() {
     setSelectedColorId(sub.colorId);
   };
 
-  // Apagar Disciplina
+  // Apagar Disciplina via Server Action (passando apenas string ID)
   const handleDelete = (id: string, name: string) => {
-    setSubjects((prev) => prev.filter((s) => s.id !== id));
-    if (editingId === id) {
-      handleStartNew();
+    if (!confirm(`Deseja realmente remover a disciplina "${name}"?`)) {
+      return;
     }
-    showToast(`Disciplina "${name}" removida.`);
+
+    startTransition(async () => {
+      const res = await excluirDisciplina(id);
+      if (res.success) {
+        setSubjects((prev) => (prev || []).filter((s) => s.id !== id));
+        if (editingId === id) {
+          handleStartNew();
+        }
+        showToast(`Disciplina "${name}" removida com sucesso.`);
+        toast.success(`Disciplina "${name}" removida.`);
+      } else {
+        toast.error(res.error || "Não foi possível excluir a disciplina.");
+      }
+    });
   };
 
-  // Salvar Disciplina
+  // Salvar Disciplina: intercepta evento do form e passa APENAS JSON limpo serializável
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = subjectName.trim();
@@ -102,26 +143,47 @@ export default function DisciplinasPage() {
       subjectCode.trim().toUpperCase() ||
       trimmedName.slice(0, 3).toUpperCase();
 
-    if (!trimmedName) return;
-
-    const payload: SubjectItem = {
-      id: editingId || `sub-${Date.now()}`,
-      name: trimmedName,
-      code: trimmedCode,
-      colorId: selectedColorId,
-    };
-
-    if (editingId) {
-      setSubjects((prev) =>
-        prev.map((s) => (s.id === editingId ? payload : s))
-      );
-      showToast(`Disciplina "${trimmedName}" atualizada com sucesso!`);
-    } else {
-      setSubjects((prev) => [payload, ...prev]);
-      showToast(`Disciplina "${trimmedName}" cadastrada com sucesso!`);
+    if (!trimmedName) {
+      toast.error("Informe o nome da disciplina.");
+      return;
     }
 
-    handleStartNew();
+    // Objeto limpo serializável para a Server Action
+    const cleanPayload = {
+      id: editingId && !editingId.startsWith("sub-") ? editingId : undefined,
+      nome: trimmedName,
+      codigo: trimmedCode,
+      cor_id: selectedColorId,
+    };
+
+    startTransition(async () => {
+      const res = await salvarDisciplina(cleanPayload);
+      if (res.success) {
+        const generatedId = res.data?.id || editingId || `sub-${Date.now()}`;
+        const localItem: SubjectItem = {
+          id: generatedId,
+          name: trimmedName,
+          code: trimmedCode,
+          colorId: selectedColorId,
+        };
+
+        if (editingId) {
+          setSubjects((prev) =>
+            (prev || []).map((s) => (s.id === editingId ? localItem : s))
+          );
+          showToast(`Disciplina "${trimmedName}" atualizada!`);
+          toast.success(`Disciplina "${trimmedName}" atualizada.`);
+        } else {
+          setSubjects((prev) => [localItem, ...(prev || [])]);
+          showToast(`Disciplina "${trimmedName}" cadastrada!`);
+          toast.success(`Disciplina "${trimmedName}" cadastrada.`);
+        }
+
+        handleStartNew();
+      } else {
+        toast.error(res.error || "Erro ao salvar disciplina no banco.");
+      }
+    });
   };
 
   const previewColor = getColorOption(selectedColorId);
@@ -131,9 +193,9 @@ export default function DisciplinasPage() {
       {/* Barra de Navegação Superior (Topbar) */}
       <Topbar />
 
-      {/* Estrutura Base: Altura travada (h-[calc(100vh-70px)]) e overflow-hidden para experiência App-like */}
+      {/* Estrutura Base */}
       <main className="w-full max-w-7xl mx-auto px-4 py-4 h-[calc(100vh-70px)] overflow-hidden flex flex-col gap-4">
-        {/* Cabeçalho de Página Compacto: "Gestão de Disciplinas" e Botão "+ Nova Disciplina" */}
+        {/* Cabeçalho de Página Compacto */}
         <header className="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200/80">
           <div>
             <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-white border border-slate-200/80 text-xs font-medium text-slate-600 mb-1.5 shadow-2xs">
@@ -168,9 +230,9 @@ export default function DisciplinasPage() {
           </div>
         </header>
 
-        {/* Layout de Grade: Duas Colunas Travadas na Altura Disponível */}
+        {/* Layout de Grade: Duas Colunas */}
         <div className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* COLUNA DA ESQUERDA: Scroll Interno Invisível (h-full + overflow-y-auto + scrollbar oculta) */}
+          {/* COLUNA DA ESQUERDA: Disciplinas Cadastradas */}
           <section
             aria-label="Disciplinas Cadastradas"
             className="lg:col-span-5 h-full min-h-0 bg-white rounded-xl shadow-sm border border-slate-200/80 p-5 flex flex-col overflow-hidden"
@@ -179,12 +241,12 @@ export default function DisciplinasPage() {
               <div className="flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-indigo-600" />
                 <h2 className="text-base font-bold text-slate-900">
-                  Disciplinas Cadastradas ({subjects.length})
+                  Disciplinas Cadastradas ({(subjects || []).length})
                 </h2>
               </div>
             </div>
 
-            {subjects.length === 0 ? (
+            {(subjects || []).length === 0 ? (
               <div className="flex-1 min-h-0 flex items-center justify-center p-2">
                 <EmptyState
                   icon={BookOpen}
@@ -251,8 +313,9 @@ export default function DisciplinasPage() {
                         <button
                           type="button"
                           onClick={() => handleDelete(sub.id, sub.name)}
+                          disabled={isPending}
                           title="Apagar disciplina"
-                          className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -264,7 +327,7 @@ export default function DisciplinasPage() {
             )}
           </section>
 
-          {/* COLUNA DA DIREITA: Fixar o Formulário (h-full flex flex-col justify-center overflow-hidden, sem rolagem) */}
+          {/* COLUNA DA DIREITA: Formulário */}
           <section
             aria-label="Formulário de Cadastro de Disciplina"
             className="lg:col-span-7 h-full min-h-0 overflow-hidden flex flex-col justify-center"
@@ -304,10 +367,7 @@ export default function DisciplinasPage() {
                       type="text"
                       required
                       value={subjectName}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSubjectName(val);
-                      }}
+                      onChange={(e) => setSubjectName(e.target.value)}
                       placeholder="Ex: Matemática"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                     />
@@ -335,7 +395,7 @@ export default function DisciplinasPage() {
                   </div>
                 </div>
 
-                {/* Seletor Visual de Cor: 8 Botões Circulares em Tons Pastéis */}
+                {/* Seletor Visual de Cor */}
                 <div className="space-y-2.5 pt-1">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
@@ -415,6 +475,7 @@ export default function DisciplinasPage() {
                     <button
                       type="button"
                       onClick={handleStartNew}
+                      disabled={isPending}
                       className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
                     >
                       Cancelar
@@ -423,10 +484,20 @@ export default function DisciplinasPage() {
 
                   <button
                     type="submit"
-                    className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm shadow-indigo-500/20 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer"
+                    disabled={isPending}
+                    className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold shadow-sm shadow-indigo-500/20 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer"
                   >
-                    <Save className="w-4 h-4" />
-                    <span>Salvar Disciplina</span>
+                    {isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Gravando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Salvar Disciplina</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>

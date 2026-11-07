@@ -120,13 +120,15 @@ export default function UsuariosClient({
     }
 
     startTransition(async () => {
-      const result = await criarUsuario({
-        nome: nome.trim(),
-        username: cleanUser,
-        senha,
+      const cleanPayload = {
+        nome: String(nome).trim(),
+        username: String(cleanUser),
+        senha: String(senha).trim(),
         role,
-        escolaId: escolaId && escolaId.length > 5 ? escolaId : null,
-      });
+        escolaId: escolaId && escolaId.length > 5 ? String(escolaId) : null,
+      };
+
+      const result = await criarUsuario(cleanPayload);
 
       if (result.success) {
         toast.success(result.message || "Usuário convidado com sucesso", {

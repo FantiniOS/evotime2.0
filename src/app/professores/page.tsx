@@ -1,8 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import Topbar from "@/components/Topbar";
 import EmptyState from "@/components/EmptyState";
+import {
+  listarProfessores,
+  salvarProfessor,
+  excluirProfessor,
+} from "@/actions/professorActions";
+import { toast } from "sonner";
 import {
   DEFAULT_SUBJECTS,
   DEFAULT_CLASSES,
@@ -28,6 +34,7 @@ import {
   Link2,
   Check,
   X,
+  Loader2,
 } from "lucide-react";
 
 export type DayKey = "seg" | "ter" | "qua" | "qui" | "sex";
@@ -82,11 +89,11 @@ const TOTAL_SLOTS = DAYS.length * PERIODS.length;
 const INITIAL_TEACHERS: TeacherEngineProfile[] = [];
 
 export default function ProfessoresPage() {
-  const [teachers, setTeachers] =
-    useState<TeacherEngineProfile[]>([]);
+  const [teachers, setTeachers] = useState<TeacherEngineProfile[]>([]);
   const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [classes, setClasses] = useState<SchoolClassItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   // Estado do Formulário (Coluna da Direita)
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -104,37 +111,66 @@ export default function ProfessoresPage() {
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const savedSub = localStorage.getItem(SUBJECTS_STORAGE_KEY);
-      if (savedSub) {
-        const parsed = JSON.parse(savedSub);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setSubjects(parsed);
-          setSelectedSubjectId(parsed[0].id);
+    async function carregarDados() {
+      try {
+        const savedSub = localStorage.getItem(SUBJECTS_STORAGE_KEY);
+        if (savedSub) {
+          const parsed = JSON.parse(savedSub);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSubjects(parsed);
+            setSelectedSubjectId(parsed[0].id);
+          }
         }
-      }
 
-      const savedCls = localStorage.getItem(CLASSES_STORAGE_KEY);
-      if (savedCls) {
-        const parsed = JSON.parse(savedCls);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setClasses(parsed);
-          setSelectedClassNames([parsed[0].name]);
+        const savedCls = localStorage.getItem(CLASSES_STORAGE_KEY);
+        if (savedCls) {
+          const parsed = JSON.parse(savedCls);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setClasses(parsed);
+            setSelectedClassNames([parsed[0].name]);
+          }
         }
-      }
 
-      const savedTeachers = localStorage.getItem(TEACHERS_STORAGE_KEY);
-      if (savedTeachers) {
-        const parsed = JSON.parse(savedTeachers);
-        if (Array.isArray(parsed)) {
-          setTeachers(parsed);
+        // Busca professores no Supabase com fallback para localStorage
+        const resProf = await listarProfessores();
+        if (resProf.success && resProf.data && resProf.data.length > 0) {
+          const mapped: TeacherEngineProfile[] = resProf.data.map((p) => ({
+            id: p.id,
+            name: p.nome,
+            assignments: Array.isArray(p.vinculos) ? p.vinculos : [],
+            unavailableSlots: Array.isArray(p.indisponibilidades)
+              ? p.indisponibilidades
+              : [],
+            rules:
+              p.regras && typeof p.regras === "object"
+                ? (p.regras as any)
+                : {
+                    avoidGaps: true,
+                    avoidMoreThanTwoConsecutive: true,
+                  },
+          }));
+          setTeachers(mapped);
+          try {
+            localStorage.setItem(TEACHERS_STORAGE_KEY, JSON.stringify(mapped));
+          } catch {}
+          return;
         }
+
+        const savedTeachers = localStorage.getItem(TEACHERS_STORAGE_KEY);
+        if (savedTeachers) {
+          const parsed = JSON.parse(savedTeachers);
+          if (Array.isArray(parsed)) {
+            setTeachers(parsed);
+          }
+        }
+      } catch {
+        // Fallback silencioso
+      } finally {
+        setIsLoaded(true);
       }
-    } catch {
-      // Fallback para defaults
-    } finally {
-      setIsLoaded(true);
     }
+
+    carregarDados();
   }, []);
 
   useEffect(() => {
@@ -173,11 +209,23 @@ export default function ProfessoresPage() {
   };
 
   const handleDeleteTeacher = (id: string, name: string) => {
-    setTeachers((prev) => prev.filter((t) => t.id !== id));
-    if (editingId === id) {
-      handleStartNew();
+    if (!confirm(`Deseja realmente remover o professor "${name}"?`)) {
+      return;
     }
-    showToast(`Professor "${name}" removido.`);
+
+    startTransition(async () => {
+      const res = await excluirProfessor(id);
+      if (res.success) {
+        setTeachers((prev) => (prev || []).filter((t) => t.id !== id));
+        if (editingId === id) {
+          handleStartNew();
+        }
+        showToast(`Professor "${name}" removido com sucesso.`);
+        toast.success(`Professor "${name}" removido.`);
+      } else {
+        toast.error(res.error || "Não foi possível excluir o professor.");
+      }
+    });
   };
 
   // Alternar seleção de turma no multi-select de tags/chips
@@ -258,27 +306,58 @@ export default function ProfessoresPage() {
   const handleSaveTeacher = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = teacherName.trim();
-    if (!trimmedName) return;
-
-    const payload: TeacherEngineProfile = {
-      id: editingId || `prof-${Date.now()}`,
-      name: trimmedName,
-      assignments,
-      unavailableSlots,
-      rules,
-    };
-
-    if (editingId) {
-      setTeachers((prev) =>
-        prev.map((t) => (t.id === editingId ? payload : t))
-      );
-      showToast(`Vínculos e disponibilidade de "${trimmedName}" salvos!`);
-    } else {
-      setTeachers((prev) => [payload, ...prev]);
-      showToast(`Professor "${trimmedName}" cadastrado com sucesso!`);
+    if (!trimmedName) {
+      toast.error("Informe o nome do professor.");
+      return;
     }
 
-    handleStartNew();
+    const cleanPayload = {
+      id: editingId && !editingId.startsWith("prof-") ? editingId : undefined,
+      nome: trimmedName,
+      vinculos: (assignments || []).map((v) => ({
+        id: v.id,
+        subjectId: v.subjectId,
+        subjectName: v.subjectName,
+        subjectCode: v.subjectCode,
+        colorId: v.colorId,
+        classNames: Array.from(v.classNames || []),
+      })),
+      indisponibilidades: Array.from(unavailableSlots || []),
+      regras: {
+        avoidGaps: Boolean(rules.avoidGaps),
+        avoidMoreThanTwoConsecutive: Boolean(rules.avoidMoreThanTwoConsecutive),
+      },
+    };
+
+    startTransition(async () => {
+      const res = await salvarProfessor(cleanPayload);
+      if (res.success) {
+        const generatedId = res.data?.id || editingId || `prof-${Date.now()}`;
+        const localItem: TeacherEngineProfile = {
+          id: generatedId,
+          name: trimmedName,
+          assignments,
+          unavailableSlots,
+          rules,
+        };
+
+        if (editingId) {
+          setTeachers((prev) =>
+            (prev || []).map((t) => (t.id === editingId ? localItem : t))
+          );
+          showToast(`Vínculos e disponibilidade de "${trimmedName}" salvos!`);
+          toast.success(`Professor "${trimmedName}" atualizado com sucesso.`);
+        } else {
+          setTeachers((prev) => [localItem, ...(prev || [])]);
+          showToast(`Professor "${trimmedName}" cadastrado com sucesso!`);
+          toast.success(`Professor "${trimmedName}" cadastrado com sucesso.`);
+        }
+
+        handleStartNew();
+      } else {
+        toast.error(res.error || "Erro ao salvar professor no banco.");
+      }
+    });
   };
 
   const getFullDaysOffLabels = (slots: string[]) => {
@@ -905,10 +984,20 @@ export default function ProfessoresPage() {
 
                 <button
                   type="submit"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm shadow-indigo-500/20 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer"
+                  disabled={isPending}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold shadow-sm shadow-indigo-500/20 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer"
                 >
-                  <Save className="w-4 h-4" />
-                  <span>Salvar Professor</span>
+                  {isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Gravando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Salvar Professor</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

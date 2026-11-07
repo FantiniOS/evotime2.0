@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useTransition } from "react";
 import Topbar from "@/components/Topbar";
 import EmptyState from "@/components/EmptyState";
-import { listarTurmas, salvarTurma } from "@/actions/turmaActions";
+import { listarTurmas, salvarTurma, excluirTurma } from "@/actions/turmaActions";
 import { listarDisciplinas } from "@/actions/disciplinaActions";
+import { toast } from "sonner";
 import {
   DEFAULT_SUBJECTS,
   DEFAULT_CLASSES,
@@ -26,6 +27,7 @@ import {
   AlertTriangle,
   Calculator,
   RotateCcw,
+  Loader2,
 } from "lucide-react";
 
 type ShiftType = "Matutino" | "Vespertino" | "Noturno" | "Integral";
@@ -34,6 +36,7 @@ export default function TurmasPage() {
   const [classes, setClasses] = useState<SchoolClassItem[]>([]);
   const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   // Estado do Formulário (Coluna da Direita)
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -149,11 +152,23 @@ export default function TurmasPage() {
   };
 
   const handleDeleteClass = (id: string, name: string) => {
-    setClasses((prev) => prev.filter((c) => c.id !== id));
-    if (editingId === id) {
-      handleStartNew();
+    if (!confirm(`Deseja realmente remover a turma "${name}"?`)) {
+      return;
     }
-    showToast(`Turma "${name}" removida.`);
+
+    startTransition(async () => {
+      const res = await excluirTurma(id);
+      if (res.success) {
+        setClasses((prev) => (prev || []).filter((c) => c.id !== id));
+        if (editingId === id) {
+          handleStartNew();
+        }
+        showToast(`Turma "${name}" removida com sucesso.`);
+        toast.success(`Turma "${name}" removida.`);
+      } else {
+        toast.error(res.error || "Não foi possível excluir a turma.");
+      }
+    });
   };
 
   // Adicionar Disciplina à Matriz Curricular
@@ -203,26 +218,49 @@ export default function TurmasPage() {
   const handleSaveClass = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = className.trim();
-    if (!trimmedName) return;
-
-    const payload: SchoolClassItem = {
-      id: editingId || `turma-${Date.now()}`,
-      name: trimmedName,
-      shift,
-      curriculum,
-    };
-
-    if (editingId) {
-      setClasses((prev) =>
-        prev.map((c) => (c.id === editingId ? payload : c))
-      );
-      showToast(`Turma "${trimmedName}" atualizada com sucesso!`);
-    } else {
-      setClasses((prev) => [payload, ...prev]);
-      showToast(`Turma "${trimmedName}" cadastrada com sucesso!`);
+    if (!trimmedName) {
+      toast.error("Informe o nome da turma.");
+      return;
     }
 
-    handleStartNew();
+    const cleanPayload = {
+      id: editingId && !editingId.startsWith("turma-") && !editingId.startsWith("cls-") ? editingId : undefined,
+      nome: trimmedName,
+      turno: shift,
+      matriz_curricular: (curriculum || []).map((c) => ({
+        subjectId: c.subjectId,
+        weeklyClasses: Number(c.weeklyClasses || 0),
+      })),
+    };
+
+    startTransition(async () => {
+      const res = await salvarTurma(cleanPayload);
+      if (res.success) {
+        const generatedId = res.data?.id || editingId || `turma-${Date.now()}`;
+        const localItem: SchoolClassItem = {
+          id: generatedId,
+          name: trimmedName,
+          shift,
+          curriculum,
+        };
+
+        if (editingId) {
+          setClasses((prev) =>
+            (prev || []).map((c) => (c.id === editingId ? localItem : c))
+          );
+          showToast(`Turma "${trimmedName}" atualizada com sucesso!`);
+          toast.success(`Turma "${trimmedName}" atualizada.`);
+        } else {
+          setClasses((prev) => [localItem, ...(prev || [])]);
+          showToast(`Turma "${trimmedName}" cadastrada com sucesso!`);
+          toast.success(`Turma "${trimmedName}" cadastrada.`);
+        }
+
+        handleStartNew();
+      } else {
+        toast.error(res.error || "Erro ao salvar turma no banco.");
+      }
+    });
   };
 
   return (
@@ -671,10 +709,20 @@ export default function TurmasPage() {
 
                 <button
                   type="submit"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm shadow-indigo-500/20 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                  disabled={isPending}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold shadow-sm shadow-indigo-500/20 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 cursor-pointer"
                 >
-                  <Save className="w-4 h-4" />
-                  <span>Salvar Turma</span>
+                  {isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Gravando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Salvar Turma</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

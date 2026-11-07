@@ -30,20 +30,20 @@ export async function listarProfessores(): Promise<{
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Erro no Supabase ao listar professores:", error);
+      console.error("Erro Action listarProfessores (Supabase):", error);
       return { success: false, data: [] };
     }
 
     const listaProfessores: ProfessorItem[] = (data || []).map((row: any) => ({
-      id: row.id,
-      escola_id: row.escola_id,
-      nome: row.nome || "Professor",
+      id: String(row.id),
+      escola_id: row.escola_id ? String(row.escola_id) : undefined,
+      nome: String(row.nome || "Professor"),
       vinculos: Array.isArray(row.vinculos) ? row.vinculos : [],
       indisponibilidades: Array.isArray(row.indisponibilidades)
         ? row.indisponibilidades
         : [],
       regras: row.regras || {},
-      created_at: row.created_at,
+      created_at: row.created_at ? String(row.created_at) : undefined,
     }));
 
     return {
@@ -51,7 +51,7 @@ export async function listarProfessores(): Promise<{
       data: listaProfessores,
     };
   } catch (err) {
-    console.error("Exceção na Server Action listarProfessores:", err);
+    console.error("Erro Action listarProfessores:", err);
     return {
       success: false,
       data: [],
@@ -65,6 +65,7 @@ export async function listarProfessores(): Promise<{
 
 /**
  * Server Action: salvarProfessor
+ * Recebe objeto limpo serializável (Client-to-Server) e grava no Supabase com blindagem try/catch.
  */
 export async function salvarProfessor(payload: {
   id?: string;
@@ -75,26 +76,38 @@ export async function salvarProfessor(payload: {
   escola_id?: string | null;
 }): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    const supabase = await createClient();
-
-    let escolaIdFinal = payload.escola_id;
-    if (!escolaIdFinal) {
-      const { data: escolaPadrao } = await supabase
-        .from("escolas")
-        .select("id")
-        .limit(1)
-        .single();
-      escolaIdFinal =
-        escolaPadrao?.id || "a0000000-0000-0000-0000-000000000001";
+    if (!payload || !payload.nome?.trim()) {
+      return { success: false, error: "Nome do professor é obrigatório." };
     }
 
-    const dbPayload = {
+    const supabase = await createClient();
+
+    let escolaIdFinal: string | null = payload.escola_id || null;
+    if (!escolaIdFinal) {
+      try {
+        const { data: escolas } = await supabase
+          .from("escolas")
+          .select("id")
+          .limit(1);
+        if (escolas && escolas.length > 0) {
+          escolaIdFinal = String(escolas[0].id);
+        }
+      } catch {
+        escolaIdFinal = null;
+      }
+    }
+
+    const dbPayload: any = {
       nome: payload.nome.trim(),
-      vinculos: payload.vinculos || [],
-      indisponibilidades: payload.indisponibilidades || [],
+      vinculos: Array.isArray(payload.vinculos) ? payload.vinculos : [],
+      indisponibilidades: Array.isArray(payload.indisponibilidades)
+        ? payload.indisponibilidades
+        : [],
       regras: payload.regras || {},
-      escola_id: escolaIdFinal,
     };
+    if (escolaIdFinal) {
+      dbPayload.escola_id = escolaIdFinal;
+    }
 
     let result;
     if (payload.id && !payload.id.startsWith("prof-")) {
@@ -103,17 +116,37 @@ export async function salvarProfessor(payload: {
         .update(dbPayload)
         .eq("id", payload.id)
         .select()
-        .single();
+        .maybeSingle();
     } else {
       result = await supabase
         .from("professores")
         .insert(dbPayload)
         .select()
-        .single();
+        .maybeSingle();
+    }
+
+    // Se falhar devido à FK ou coluna escola_id, tenta novamente sem ela
+    if (result.error && dbPayload.escola_id) {
+      console.warn("Aviso ao salvar professor com escola_id, tentando fallback sem escola_id:", result.error.message);
+      delete dbPayload.escola_id;
+      if (payload.id && !payload.id.startsWith("prof-")) {
+        result = await supabase
+          .from("professores")
+          .update(dbPayload)
+          .eq("id", payload.id)
+          .select()
+          .maybeSingle();
+      } else {
+        result = await supabase
+          .from("professores")
+          .insert(dbPayload)
+          .select()
+          .maybeSingle();
+      }
     }
 
     if (result.error) {
-      console.error("Erro no Supabase ao salvar professor:", result.error);
+      console.error("Erro Action salvarProfessor (Supabase):", result.error);
       return { success: false, error: result.error.message };
     }
 
@@ -123,7 +156,7 @@ export async function salvarProfessor(payload: {
 
     return { success: true, data: result.data };
   } catch (err) {
-    console.error("Exceção na Server Action salvarProfessor:", err);
+    console.error("Erro Action salvarProfessor:", err);
     return {
       success: false,
       error: err instanceof Error ? err.message : "Erro ao salvar professor.",
@@ -138,6 +171,10 @@ export async function excluirProfessor(
   professorId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    if (!professorId) {
+      return { success: false, error: "ID do professor não informado." };
+    }
+
     const supabase = await createClient();
     const { error } = await supabase
       .from("professores")
@@ -145,7 +182,7 @@ export async function excluirProfessor(
       .eq("id", professorId);
 
     if (error) {
-      console.error("Erro no Supabase ao excluir professor:", error);
+      console.error("Erro Action excluirProfessor (Supabase):", error);
       return { success: false, error: error.message };
     }
 
@@ -153,7 +190,7 @@ export async function excluirProfessor(
     revalidatePath("/grade");
     return { success: true };
   } catch (err) {
-    console.error("Exceção na Server Action excluirProfessor:", err);
+    console.error("Erro Action excluirProfessor:", err);
     return {
       success: false,
       error: err instanceof Error ? err.message : "Erro ao excluir professor.",

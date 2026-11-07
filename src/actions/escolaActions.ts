@@ -138,7 +138,7 @@ export async function criarEscola(
       data,
     };
   } catch (err) {
-    console.error("Exceção na Server Action criarEscola:", err);
+    console.error("Erro Action criarEscola:", err);
     return {
       success: false,
       error:
@@ -171,7 +171,7 @@ export async function listarEscolas(): Promise<ListarEscolasResponse> {
       data: data || [],
     };
   } catch (err) {
-    console.error("Exceção na Server Action listarEscolas:", err);
+    console.error("Erro Action listarEscolas:", err);
     return {
       success: false,
       data: [],
@@ -301,7 +301,7 @@ export async function salvarConfiguracoesEscola(payload: {
 
     return { success: true, data };
   } catch (err) {
-    console.error("[salvarConfiguracoesEscola] Exceção:", err);
+    console.error("Erro Action salvarConfiguracoesEscola:", err);
     return {
       success: false,
       error:
