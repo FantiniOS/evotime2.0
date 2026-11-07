@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
-import Topbar from "@/components/Topbar";
 import {
   SCHOOLS_LIST,
   SCHOOLS_STORAGE_KEY,
@@ -466,12 +465,9 @@ export default function ExportarPage() {
   };
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-slate-100">
-      {/* Barra de Navegação Superior */}
-      <Topbar />
-
+    <div className="w-full flex-1 h-[calc(100vh-70px)] overflow-hidden flex flex-col bg-slate-100">
       {/* Layout Split Screen: Painel de Controle à Esquerda | <PDFViewer> Vetorial à Direita */}
-      <div className="flex-1 h-[calc(100vh-70px)] flex flex-col lg:flex-row overflow-hidden">
+      <div className="flex-1 h-full flex flex-col lg:flex-row overflow-hidden">
         {/* COLUNA DA ESQUERDA (35%): PAINEL DE CONTROLE E FILTROS AVANÇADOS */}
         <aside
           aria-label="Painel de Controle do PDF Vetorial"

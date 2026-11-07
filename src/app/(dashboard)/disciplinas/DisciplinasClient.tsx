@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useTransition } from "react";
-import Topbar from "@/components/Topbar";
 import EmptyState from "@/components/EmptyState";
 import {
   PASTEL_COLORS,
@@ -198,10 +197,7 @@ export default function DisciplinasClient({
   const previewColor = getColorOption(selectedColorId);
 
   return (
-    <div className="h-screen overflow-hidden bg-slate-50 flex flex-col">
-      {/* Barra de Navegação Superior (Topbar) */}
-      <Topbar />
-
+    <div className="w-full flex-1 min-h-0 overflow-hidden flex flex-col">
       {/* Estrutura Base */}
       <main className="w-full max-w-7xl mx-auto px-4 py-4 h-[calc(100vh-70px)] overflow-hidden flex flex-col gap-4">
         {/* Cabeçalho de Página Compacto */}

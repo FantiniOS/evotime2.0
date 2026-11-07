@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   SCHOOLS_LIST,
   SCHOOLS_STORAGE_KEY,
@@ -69,6 +69,7 @@ const navItems: TopNavItem[] = [
 
 export default function Topbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [schools, setSchools] = useState<SchoolTenant[]>(SCHOOLS_LIST);
   const [activeSchool, setActiveSchool] = useState<SchoolTenant>(
     SCHOOLS_LIST[0] || FALLBACK_EMPTY_SCHOOL
@@ -217,10 +218,10 @@ export default function Topbar() {
         new CustomEvent("evotime:school-change", { detail: school })
       );
 
-      // 5. Dá refresh completo para que todas as telas consumam a nova escola ativa
-      window.location.reload();
+      // 5. Atualiza os dados dos Server Components preservando o layout SPA
+      router.refresh();
     } catch {
-      window.location.reload();
+      router.refresh();
     }
   };
 
@@ -228,7 +229,8 @@ export default function Topbar() {
     try {
       await logoutAction();
     } finally {
-      window.location.href = "/login";
+      router.push("/login");
+      router.refresh();
     }
   };
 

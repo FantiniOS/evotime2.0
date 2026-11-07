@@ -1,5 +1,5 @@
 import React from "react";
-import HomePage from "@/app/page";
+import HomePage from "../page";
 
 export const dynamic = "force-dynamic";
 

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useTransition } from "react";
-import Topbar from "@/components/Topbar";
 import EmptyState from "@/components/EmptyState";
 import {
   listarProfessores,
@@ -376,9 +375,7 @@ export default function ProfessoresClient({
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-slate-50 flex flex-col">
-      <Topbar />
-
+    <div className="w-full flex-1 min-h-0 overflow-hidden flex flex-col">
       <main className="w-full max-w-7xl mx-auto px-4 py-4 h-[calc(100vh-70px)] flex flex-col overflow-hidden gap-4">
         {/* Cabeçalho Compacto */}
         <header className="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200/80">

@@ -16,7 +16,6 @@ import {
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Toaster, toast } from "sonner";
-import Topbar from "@/components/Topbar";
 import InfeasibilityReportModal from "@/components/InfeasibilityReportModal";
 import type {
   SolverJobState,
@@ -995,13 +994,7 @@ export default function GradePage() {
     activeJob?.unfeasibleReport?.conflicts || DEFAULT_FALLBACK_CONFLICTS;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Notificações Toast (Sonner) */}
-      <Toaster richColors position="top-right" closeButton />
-
-      {/* Topbar Superior com Seletor Multi-Escola */}
-      <Topbar />
-
+    <div className="w-full flex-1 flex flex-col">
       {/* Container Centralizado */}
       <main className="w-full max-w-7xl mx-auto px-4 py-8 space-y-6">
         {/* Cabeçalho da Página */}

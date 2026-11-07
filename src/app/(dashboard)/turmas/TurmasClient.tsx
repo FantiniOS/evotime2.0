@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useTransition } from "react";
-import Topbar from "@/components/Topbar";
 import EmptyState from "@/components/EmptyState";
 import { listarTurmas, salvarTurma, excluirTurma } from "@/actions/turmaActions";
 import { listarDisciplinas } from "@/actions/disciplinaActions";
@@ -276,10 +275,7 @@ export default function TurmasClient({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Navegação Superior (Topbar) */}
-      <Topbar />
-
+    <div className="w-full flex-1 flex flex-col">
       {/* Estrutura Base: Container Padronizado */}
       <main className="w-full max-w-7xl mx-auto px-4 py-8 space-y-8">
         {/* Cabeçalho com Título "Gestão de Turmas" e Botão Primário "+ Nova Turma" */}

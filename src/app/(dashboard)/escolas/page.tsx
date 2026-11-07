@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useTransition } from "react";
-import Topbar from "@/components/Topbar";
 import EmptyState from "@/components/EmptyState";
 import { criarEscola } from "@/actions/escolaActions";
 import { criarEscolaSchema } from "@/lib/validations/escolaSchema";
@@ -237,10 +236,7 @@ export default function EscolasPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Barra de Navegação Superior (Topbar) */}
-      <Topbar />
-
+    <div className="w-full flex-1 flex flex-col">
       {/* Container Padronizado */}
       <main className="w-full max-w-7xl mx-auto px-4 py-8 space-y-8">
         {/* Cabeçalho: Título "Gestão de Escolas (Multi-tenant)" e Botão "+ Nova Escola" */}

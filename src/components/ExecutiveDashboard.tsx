@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import Topbar from "@/components/Topbar";
 import DailyWorkloadChart, {
   DailyWorkloadData,
 } from "@/components/DailyWorkloadChart";
@@ -298,10 +297,7 @@ export default function ExecutiveDashboard({
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Barra de Navegação Superior (Topbar) */}
-      <Topbar />
-
+    <div className="w-full flex-1 flex flex-col">
       {/* Container Centralizado */}
       <main className="w-full max-w-7xl mx-auto px-4 py-8 space-y-8">
         {/* 1. Cabeçalho Contextual (Escola Ativa) + Badge "Motor IA Conectado" */}

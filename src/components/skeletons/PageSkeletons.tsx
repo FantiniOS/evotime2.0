@@ -189,8 +189,8 @@ export function TableSkeleton({
 }
 
 /**
- * Layout completo padrão de "cadastro em duas colunas":
- * Topbar + Cabeçalho + [Lista | Formulário].
+ * Layout padrão de "cadastro em duas colunas" para children de (dashboard)/layout.tsx:
+ * O Topbar é persistido no layout e NÃO pisca durante as transições de rota.
  */
 export function TwoColumnPageSkeleton({
   label,
@@ -211,13 +211,12 @@ export function TwoColumnPageSkeleton({
 
   return (
     <div
-      className="min-h-screen bg-slate-50 flex flex-col"
+      className="w-full flex-1 flex flex-col"
       role="status"
       aria-busy="true"
       aria-live="polite"
     >
       <span className="sr-only">Carregando {label}...</span>
-      <TopbarSkeleton />
       <main className="w-full max-w-7xl mx-auto px-4 py-8 space-y-8">
         <PageHeaderSkeleton />
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -233,7 +232,7 @@ export function TwoColumnPageSkeleton({
   );
 }
 
-/** Layout padrão de "listagem em tabela": Topbar + Cabeçalho + Tabela. */
+/** Layout padrão de "listagem em tabela" para children de (dashboard)/layout.tsx */
 export function TablePageSkeleton({
   label,
   rows = 8,
@@ -245,13 +244,12 @@ export function TablePageSkeleton({
 }) {
   return (
     <div
-      className="min-h-screen bg-slate-50 flex flex-col"
+      className="w-full flex-1 flex flex-col"
       role="status"
       aria-busy="true"
       aria-live="polite"
     >
       <span className="sr-only">Carregando {label}...</span>
-      <TopbarSkeleton />
       <main className="w-full max-w-7xl mx-auto px-4 py-8 space-y-8">
         <PageHeaderSkeleton />
         <TableSkeleton rows={rows} columns={columns} />

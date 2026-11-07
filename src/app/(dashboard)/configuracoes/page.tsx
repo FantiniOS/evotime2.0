@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import Topbar from "@/components/Topbar";
 import { salvarConfiguracoesEscola } from "@/actions/escolaActions";
 import {
   SCHOOLS_LIST,
@@ -289,10 +288,7 @@ export default function ConfiguracoesPage() {
   const studentWeight = settings.aiRules.decisionBalance;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col pb-24">
-      {/* Barra de Navegação Superior (Topbar) */}
-      <Topbar />
-
+    <div className="w-full flex-1 flex flex-col pb-24">
       {/* Container Padrão */}
       <main className="w-full max-w-7xl mx-auto px-4 py-8 space-y-6">
         {/* Cabeçalho da Página */}
