@@ -10,21 +10,7 @@ import {
   UserRole,
 } from "@/lib/security/tenantAuth";
 import { createClient } from "@/utils/supabase/server";
-
-export interface LoginActionResult {
-  success: boolean;
-  error?: string;
-  fieldErrors?: {
-    username?: string[];
-    password?: string[];
-  };
-  sessionContext?: {
-    username: string;
-    email: string;
-    schoolId?: string;
-    role: UserRole;
-  };
-}
+import type { LoginActionResult } from "@/types/actions";
 
 const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 7; // 7 dias
 

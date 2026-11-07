@@ -2,43 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import { z } from "zod";
 import { createClient } from "@/utils/supabase/server";
-
-export const criarEscolaSchema = z.object({
-  nome: z.string().trim().min(2, "O nome da instituição é obrigatório."),
-  cnpj: z.string().trim().optional().nullable(),
-  modelo_ensino: z.string().trim().optional(),
-  logo_data_url: z.string().optional().nullable(),
-  bloquear_aulas_geminadas: z.boolean().default(true).optional(),
-});
-
-export const salvarConfiguracoesEscolaSchema = z.object({
-  escolaId: z.string().min(1, "ID da escola é obrigatório."),
-  nome: z.string().trim().optional(),
-  cnpj: z.string().trim().optional().nullable(),
-  bloquear_aulas_geminadas: z.boolean().default(true),
-  configuracoes_ia: z.record(z.string(), z.any()).optional(),
-  turnos: z.record(z.string(), z.any()).optional(),
-});
-
-export type CriarEscolaInput = z.infer<typeof criarEscolaSchema>;
-export type SalvarConfiguracoesEscolaInput = z.infer<
-  typeof salvarConfiguracoesEscolaSchema
->;
-
-export interface CriarEscolaResponse {
-  success: boolean;
-  data?: any;
-  error?: string;
-  fieldErrors?: Record<string, string[]>;
-}
-
-export interface ListarEscolasResponse {
-  success: boolean;
-  data: any[];
-  error?: string;
-}
+import {
+  criarEscolaSchema,
+  salvarConfiguracoesEscolaSchema,
+} from "@/lib/validations/escolaSchema";
+import type {
+  CriarEscolaResponse,
+  ListarEscolasResponse,
+} from "@/types/actions";
 
 /**
  * Server Action: criarEscola

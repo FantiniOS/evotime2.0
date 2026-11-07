@@ -2,16 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
-
-export interface ProfessorItem {
-  id: string;
-  escola_id?: string;
-  nome: string;
-  vinculos?: any[];
-  indisponibilidades?: any[];
-  regras?: Record<string, any>;
-  created_at?: string;
-}
+import type { ProfessorItem } from "@/types/actions";
 
 /**
  * Server Action: listarProfessores

@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { createClient } from "@/utils/supabase/server";
@@ -12,53 +11,12 @@ import {
 } from "@/lib/auth/emailMapping";
 import type { Database } from "@/types/supabase";
 
-const criarUsuarioSchema = z.object({
-  nome: z.string().trim().min(2, "O nome deve ter no mínimo 2 caracteres."),
-  username: z
-    .string()
-    .trim()
-    .min(3, "O nome de usuário deve ter no mínimo 3 caracteres.")
-    .max(50, "O nome de usuário deve ter no máximo 50 caracteres.")
-    .regex(
-      /^[a-zA-Z0-9._-]+$/,
-      "O usuário deve conter apenas letras, números, pontos, hífens ou underscores (sem espaços)."
-    ),
-  senha: z
-    .string()
-    .min(6, "A senha provisória deve ter no mínimo 6 caracteres.")
-    .max(128, "Senha muito longa."),
-  role: z.enum(["admin", "coordenador", "diretor", "professor"] as const),
-  escolaId: z.string().optional().nullable(),
-});
-
-export type CriarUsuarioInput =
-  | FormData
-  | {
-      nome: string;
-      username: string;
-      senha: string;
-      role: "admin" | "coordenador" | "diretor" | "professor";
-      escolaId?: string | null;
-    };
-
-export interface CriarUsuarioResult {
-  success: boolean;
-  message?: string;
-  error?: string;
-  fieldErrors?: Record<string, string[]>;
-  data?: any;
-}
-
-export interface UsuarioItem {
-  id: string;
-  nome: string;
-  username: string;
-  email: string;
-  role: "admin" | "coordenador" | "diretor" | "professor";
-  escola_id: string | null;
-  escola_nome?: string | null;
-  created_at: string;
-}
+import { criarUsuarioSchema } from "@/lib/validations/usuarioSchema";
+import type {
+  CriarUsuarioInput,
+  CriarUsuarioResult,
+  UsuarioItem,
+} from "@/types/actions";
 
 /**
  * Server Action: criarUsuario

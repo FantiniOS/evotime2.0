@@ -2,15 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
-
-export interface TurmaItem {
-  id: string;
-  escola_id?: string;
-  nome: string;
-  turno: "Matutino" | "Vespertino" | "Noturno" | "Integral";
-  matriz_curricular?: any[];
-  created_at?: string;
-}
+import type { TurmaItem } from "@/types/actions";
 
 /**
  * Server Action: listarTurmas

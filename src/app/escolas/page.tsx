@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef, useTransition } from "react";
 import Topbar from "@/components/Topbar";
 import EmptyState from "@/components/EmptyState";
-import { criarEscola, criarEscolaSchema } from "@/actions/escolaActions";
+import { criarEscola } from "@/actions/escolaActions";
+import { criarEscolaSchema } from "@/lib/validations/escolaSchema";
 import {
   SCHOOLS_LIST,
   SCHOOLS_STORAGE_KEY,

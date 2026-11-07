@@ -2,15 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
-
-export interface DisciplinaItem {
-  id: string;
-  escola_id?: string;
-  nome: string;
-  codigo: string;
-  cor_id: string;
-  created_at?: string;
-}
+import type { DisciplinaItem } from "@/types/actions";
 
 /**
  * Server Action: listarDisciplinas

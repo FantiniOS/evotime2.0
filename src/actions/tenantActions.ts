@@ -6,13 +6,7 @@ import {
   enforceServerTenantId,
   buildTenantScopedQuery,
 } from "@/lib/security/tenantAuth";
-
-export interface ActionResponse<T = unknown> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  enforcedSchoolId?: string;
-}
+import type { ActionResponse } from "@/types/actions";
 
 /**
  * 1. QUERY (GET) SEGURA MULTI-TENANT
