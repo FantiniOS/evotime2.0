@@ -18,8 +18,27 @@ export const dynamic = "force-dynamic";
 export default async function UsuariosPage() {
   const supabase = await createClient();
 
+  // Escolas e usuários são independentes: executa as duas consultas EM PARALELO
+  // (antes eram sequenciais — dois round-trips ao banco somados).
+  const [escolas, usuarios] = await Promise.all([
+    buscarEscolas(supabase),
+    buscarUsuarios(supabase),
+  ]);
+
+  return (
+    <UsuariosClient
+      initialUsuarios={usuarios}
+      initialEscolas={escolas}
+    />
+  );
+}
+
+type ServerSupabase = Awaited<ReturnType<typeof createClient>>;
+
+async function buscarEscolas(
+  supabase: ServerSupabase
+): Promise<SerializableEscola[]> {
   let escolas: SerializableEscola[] = [];
-  let usuarios: SerializableUsuario[] = [];
 
   // 1. Busca escolas cadastradas para o seletor de unidade
   try {
@@ -43,7 +62,15 @@ export default async function UsuariosPage() {
     console.error("Exceção ao listar escolas no Server Component:", err);
   }
 
-  // 2. Busca lista de usuários com join de escolas
+  return escolas;
+}
+
+async function buscarUsuarios(
+  supabase: ServerSupabase
+): Promise<SerializableUsuario[]> {
+  let usuarios: SerializableUsuario[] = [];
+
+  // 2. Busca lista de usuários com join de escolas (1 única query, sem N+1)
   try {
     let { data: usuariosData, error: usuariosError } = await supabase
       .from("usuarios")
@@ -130,10 +157,5 @@ export default async function UsuariosPage() {
     console.error("Exceção ao listar usuários no Server Component:", err);
   }
 
-  return (
-    <UsuariosClient
-      initialUsuarios={usuarios}
-      initialEscolas={escolas}
-    />
-  );
+  return usuarios;
 }
